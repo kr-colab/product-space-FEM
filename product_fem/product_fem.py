@@ -32,49 +32,59 @@ def form_to_array(form):
         array = arr.array()
     return array
 
+# TODO: generalize this to assemble sum_i kron(B_i, C_i)
 def assemble_kron(forms):
+    # forms = [(B_1, C_1), ..., (B_n, C_n)]
+    krons = []
+    for BC in forms:
+        B_form, C_form = BC
+        B_i = form_to_array(B_form)
+        C_i = form_to_array(C_form)
+        krons.append(np.kron(B_i, C_i))
+    A = sum(krons)
+    return A
+
     # if 2 forms are given, compute kron(B, C) + kron(C, B)
-    if len(forms)==2:
-        B_form, C_form = forms
-        B = form_to_array(B_form)
-        C = form_to_array(C_form)
-        A = np.kron(B, C) + np.kron(C, B)
+#     if len(forms)==2:
+#         B_form, C_form = forms
+#         B = form_to_array(B_form)
+#         C = form_to_array(C_form)
+#         A = np.kron(B, C) + np.kron(C, B)
     
-    # if 4 forms are given, compute kron(B, C) + kron(D, E)
-    elif len(forms)==4:
-        B_form, C_form, D_form, E_form = forms
-        B = form_to_array(B_form)
-        C = form_to_array(C_form)
-        D = form_to_array(D_form)
-        E = form_to_array(E_form)
-        A = np.kron(B, C) +  np.kron(D, E)
+#     # if 4 forms are given, compute kron(B, C) + kron(D, E)
+#     elif len(forms)==4:
+#         B_form, C_form, D_form, E_form = forms
+#         B = form_to_array(B_form)
+#         C = form_to_array(C_form)
+#         D = form_to_array(D_form)
+#         E = form_to_array(E_form)
+#         A = np.kron(B, C) +  np.kron(D, E)
         
     return A
         
 def assemble_product(A_forms, b_forms):
     # assembles linear system AU=b where
-    # A = kron(B,C) + kron(C,B)
-    # b = kron(c,d)
-    assert len(b_forms)==2
+    # A = sum_i kron(B_i,C_i)
+    # b = sum_i kron(c_i,d_i)
 
-    # LHS assembly
+    # LHS & RHS assembly
     A = assemble_kron(A_forms)
-
+    b = assemble_kron(b_forms)
     # RHS assembly
-    if not isinstance(b_forms[0], list):
-        c_form, d_form = b_forms
-        c = form_to_array(c_form)
-        d = form_to_array(d_form)
-        b = np.kron(c, d)
-    else:
-        c_forms, d_forms = b_forms
-        assert len(c_forms)==len(d_forms)
-        b = []
-        for i in range(len(c_forms)):
-            Xi = form_to_array(c_forms[i])
-            Yi = form_to_array(d_forms[i])
-            b.append(np.kron(Xi, Yi))
-        b = np.sum(b, axis=0)
+#     if not isinstance(b_forms[0], list):
+#         c_form, d_form = b_forms
+#         c = form_to_array(c_form)
+#         d = form_to_array(d_form)
+#         b = np.kron(c, d)
+#     else:
+#         c_forms, d_forms = b_forms
+#         assert len(c_forms)==len(d_forms)
+#         b = []
+#         for i in range(len(c_forms)):
+#             Xi = form_to_array(c_forms[i])
+#             Yi = form_to_array(d_forms[i])
+#             b.append(np.kron(Xi, Yi))
+#         b = np.sum(b, axis=0)
 
     return A, b
 
@@ -120,6 +130,7 @@ class ProductFunctionSpace:
         self._marginal_function_space = V
         self._marginal_mesh = V.mesh()
         self.dofmap = ProductDofMap(V)
+        self.mass = self._compute_mass()
         
     def dofs(self):
         # need to do bijections that can be
@@ -133,6 +144,17 @@ class ProductFunctionSpace:
         # ^^factors through the previous 2 bijections
         return self.dofmap._dofs_to_coords
     
+    def _compute_mass(self):
+        V = self._marginal_function_space
+        v = TestFunction(V)
+        mass = assemble(v * dx)[:]
+        mass = np.kron(mass, mass)
+        return mass
+    
+    def integrate(self, f):
+        # integrates f(x,y) over product space
+        return np.dot(f, self.mass)
+        
     def marginal_function_space(self):
         return self._marginal_function_space
     
@@ -140,19 +162,24 @@ class ProductFunctionSpace:
         return self._marginal_mesh
     
 
-class ProductFunction:
-    def __init__(self, product_function_space):
+class Function:
+    def __init__(self, W):
         # initializes product space function 
         # f(x,y) = sum_ij f_ij phi_i(x)phi_j(y)
         # where f_ij = f(x_i, y_j)
         # by default f_ij=0 for all ij
-        n_dofs = len(product_function_space.dofmap.dofs)
-        self.function = np.zeros(n_dofs)
+        self.W = W
+        n_dofs = len(W.dofmap.dofs)
+        self.array = np.zeros(n_dofs)
         
     def assign(self, f):
         # assigns values in array f to product function f(x,y)
         # i.e. f contains f_ij
-        self.function = f
+        f_array = self.array
+        dof_to_coords = self.W.dofmap._dofs_to_coords
+        for dof, xy in dof_to_coords.items():
+            f_array[dof] = f(*xy)
+        self.array = f_array
         
         
 class ProductDirichletBC:

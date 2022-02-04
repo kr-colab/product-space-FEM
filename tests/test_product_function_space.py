@@ -8,23 +8,25 @@ class TestProductFunctionSpace():
     def test_basic_properties(self):
         n = 22
         mesh = fenics.UnitIntervalMesh(n-1)
-        V1 = FunctionSpace(mesh, 'CG', 1)
+        V1 = fenics.FunctionSpace(mesh, 'CG', 1)
         V = prod.ProductFunctionSpace(V1)
 
-        assert V.marginal_mesh == mesh
-        assert V.marginal_function_space == V1
+        assert V.marginal_mesh() == mesh
+        assert V.marginal_function_space() == V1
 
 
 class TestBoundaryConditions():
 
     def verify_bc(self, bc, V, bc_fn):
         assert bc.product_function_space == V
-        assert bc.marginal_function_space == V.marginal_vunction_space
+        assert bc.marginal_function_space == V.marginal_function_space()
+        for xy in [(0.5, 0.5), (0.1, 0.9), (0.2312312, 0.696982)]:
+            assert bc_fn(*xy) == bc.boundary_values(*xy)
 
     def test_zero_dirichlet_bc(self):
         n = 22
         mesh = fenics.UnitIntervalMesh(n-1)
-        V1 = FunctionSpace(mesh, 'CG', 1)
+        V1 = fenics.FunctionSpace(mesh, 'CG', 1)
         V = prod.ProductFunctionSpace(V1)
         bc = prod.ProductDirichletBC(V, 0)
 
@@ -36,7 +38,7 @@ class TestBoundaryConditions():
     def test_nonzero_dirichlet_bc(self):
         n = 22
         mesh = fenics.UnitIntervalMesh(n-1)
-        V1 = FunctionSpace(mesh, 'CG', 1)
+        V1 = fenics.FunctionSpace(mesh, 'CG', 1)
         V = prod.ProductFunctionSpace(V1)
 
         def u_bdry(x, y):
