@@ -32,33 +32,16 @@ def form_to_array(form):
         array = arr.array()
     return array
 
-# TODO: generalize this to assemble sum_i kron(B_i, C_i)
+# assemble sum_i kron(Ax_i, Ay_i)
 def assemble_kron(forms):
-    # forms = [(B_1, C_1), ..., (B_n, C_n)]
+    # forms = [(Ax_1, Ay_1), ..., (Ax_n, Ay_n)]
     krons = []
     for BC in forms:
-        B_form, C_form = BC
-        B_i = form_to_array(B_form)
-        C_i = form_to_array(C_form)
+        Ax_forms, Ay_forms = BC
+        B_i = form_to_array(Ax_forms)
+        C_i = form_to_array(Ay_forms)
         krons.append(np.kron(B_i, C_i))
     A = sum(krons)
-    return A
-
-    # if 2 forms are given, compute kron(B, C) + kron(C, B)
-#     if len(forms)==2:
-#         B_form, C_form = forms
-#         B = form_to_array(B_form)
-#         C = form_to_array(C_form)
-#         A = np.kron(B, C) + np.kron(C, B)
-    
-#     # if 4 forms are given, compute kron(B, C) + kron(D, E)
-#     elif len(forms)==4:
-#         B_form, C_form, D_form, E_form = forms
-#         B = form_to_array(B_form)
-#         C = form_to_array(C_form)
-#         D = form_to_array(D_form)
-#         E = form_to_array(E_form)
-#         A = np.kron(B, C) +  np.kron(D, E)
         
     return A
         
@@ -70,21 +53,6 @@ def assemble_product(A_forms, b_forms):
     # LHS & RHS assembly
     A = assemble_kron(A_forms)
     b = assemble_kron(b_forms)
-    # RHS assembly
-#     if not isinstance(b_forms[0], list):
-#         c_form, d_form = b_forms
-#         c = form_to_array(c_form)
-#         d = form_to_array(d_form)
-#         b = np.kron(c, d)
-#     else:
-#         c_forms, d_forms = b_forms
-#         assert len(c_forms)==len(d_forms)
-#         b = []
-#         for i in range(len(c_forms)):
-#             Xi = form_to_array(c_forms[i])
-#             Yi = form_to_array(d_forms[i])
-#             b.append(np.kron(Xi, Yi))
-#         b = np.sum(b, axis=0)
 
     return A, b
 
@@ -127,10 +95,11 @@ class ProductDofMap:
 class ProductFunctionSpace:
     def __init__(self, V):
         # V is fenics.FunctionSpace
-        self._marginal_function_space = V
-        self._marginal_mesh = V.mesh()
+        self.V = V
+        self.V_mesh = V.ufl_domain()
         self.dofmap = ProductDofMap(V)
         self.mass = self._compute_mass()
+        self.dim = V.dim()**2
         
     def dofs(self):
         # need to do bijections that can be
@@ -145,8 +114,7 @@ class ProductFunctionSpace:
         return self.dofmap._dofs_to_coords
     
     def _compute_mass(self):
-        V = self._marginal_function_space
-        v = TestFunction(V)
+        v = TestFunction(self.V)
         mass = assemble(v * dx)[:]
         mass = np.kron(mass, mass)
         return mass
@@ -156,13 +124,13 @@ class ProductFunctionSpace:
         return np.dot(f, self.mass)
         
     def marginal_function_space(self):
-        return self._marginal_function_space
+        return self.V
     
     def marginal_mesh(self):
-        return self._marginal_mesh
+        return self.V_mesh
     
 
-class Function:
+class ProductFunction:
     def __init__(self, W):
         # initializes product space function 
         # f(x,y) = sum_ij f_ij phi_i(x)phi_j(y)
@@ -178,7 +146,7 @@ class Function:
         f_array = self.array
         dof_to_coords = self.W.dofmap._dofs_to_coords
         for dof, xy in dof_to_coords.items():
-            f_array[dof] = f(*xy)
+            f_array[dof] = f(*xy) # when f is a python function of (x,y)
         self.array = f_array
         
         
@@ -194,7 +162,7 @@ class ProductDirichletBC:
             u_bdy = lambda x,y: u_bv
             
         self.product_function_space = W
-        self.marginal_function_space = W._marginal_function_space
+        self.marginal_function_space = W.marginal_function_space()
         self.boundary_values = u_bdy
         self.on_boundary = on_product_boundary
             
