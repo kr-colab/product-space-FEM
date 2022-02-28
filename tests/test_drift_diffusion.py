@@ -20,22 +20,40 @@ class TestDriftDiffusion:
         u_h = dd.solve(eps, b)
 
         # analytic solution
-        u = pf.Function(W)
+        u = pf.ProductFunction(W)
         u.assign(soln)
         u = u.array
         
         L2_error = np.sqrt(W.integrate((u - u_h)**2))
         assert np.log(L2_error) < -10.
         
+    # TODO: test for b as ndarray
+    def test_verify_gradient(self):
+        h = 1.
+        eps = 1.
+        b = ['x[0]', 'x[0]']
+        b_ = ['x[0] * x[0]', '-x[0]']
+        f = (['exp(-x[0])'], ['cos(x[0])'])
+        n = 11
+        alpha, beta = 0.1, 0.1
+        
+        mesh = UnitIntervalMesh(n-1)
+        V = FunctionSpace(mesh, 'CG', 1)
+        W = pf.ProductFunctionSpace(V)
+        bc = pf.ProductDirichletBC(W, 0, 'on_boundary')
+
+        eqn = DriftDiffusion(W, f, bc)
+        rates = eqn.verify_gradient(h, eps, b, b_, alpha, beta)
+        for r in rates:
+            assert np.abs(r - 4.0) < 1e-3
+        
     @pytest.mark.parametrize("n", [27, 32])
     def test_sinusoid(self, n):
         W, V = self.setup_W(n)
         
-        # drift coefs
+        # diffusion and drift coefs
         eps = 1
-        b1 = Expression('x[0]', element=V.ufl_element())
-        b2 = Expression('x[0]', element=V.ufl_element())
-        b = (b1, b2)
+        b = ('x[0]', 'x[0]')
 
         # force function f = sum_i X_iY_i
         X = ['2 * eps * sin(x[0])', 'x[0] * cos(x[0])', 'sin(x[0])']

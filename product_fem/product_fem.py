@@ -2,8 +2,7 @@ import numpy as np
 import scipy.sparse as sps
 from fenics import *
 
-## TODO
-### write tests
+
 def default_product_boundary(W, x, y):
     # rule which determines if (x,y) is on the product boundary
     # default product boundary is bdy(M)xM cup Mxbdy(M)
@@ -32,6 +31,38 @@ def form_to_array(form):
         array = arr.array()
     return array
 
+## UNTESTED naive implementations to send string, ndarray, python function to FEniCS function
+## can test with 
+## f_from_str = string_to_Function(string, V)
+## f_from_arr = array_to_Function(array, V)
+## f_from_func = pyfunc_to_Function(pyfunc, V)
+## assert assemble((f_from_str - f_from_arr)**2 * dx) < 1e-10
+## assert assemble((f_from_str - f_from_func)**2 * dx) < 1e-10
+## assert assemble((f_from_arr - f_from_func)**2 * dx) < 1e-10
+def string_to_Function(string, V, proj=True):
+    if proj:
+        return project(Expression(string, element=V.ufl_element()), V)
+    else:
+        return interpolate(Expression(string, element=V.ufl_element()), V)
+    
+def ndarray_to_Function(ndarray, V):
+    f = Function(V)
+    f.vector()[:] = ndarray.copy()
+    return f
+
+def pyfunc_to_Function(pyfunc, V):
+    dof_coords = V.tabulate_dof_coordinates()
+    pyfunc_array = np.array([pyfunc(*xy) for xy in dof_coords])
+    return ndarray_to_Function(pyfunc_array, V)
+
+def to_Function(func, V):
+    if isinstance(func, str):
+        return string_to_Function(func, V)
+    elif isinstance(func, np.ndarray):
+        return ndarray_to_Function(func, V)
+    elif callable(func):
+        return pyfunc_to_Function(func, V)
+    
 # assemble sum_i kron(Ax_i, Ay_i)
 def assemble_kron(forms):
     # forms = [(Ax_1, Ay_1), ..., (Ax_n, Ay_n)]
@@ -62,44 +93,16 @@ def assemble_product_system(A_forms, b_forms, bc=None):
     if bc is not None:
         A, b = bc.apply(A, b)
     return A, b
-    
 
-class ProductDofMap:
-    # main usage is to obtain bijections between
-    # dofs ij <-> product dofs (i,j) (defined by Kronecker product)
-    # dofs ij <-> product coordinates (x_i, y_j)
-    def __init__(self, function_space):
-        # marginal dofs and coordinates
-        dofmap = function_space.dofmap()
-        dofs = dofmap.dofs()
-        dof_coords = function_space.tabulate_dof_coordinates()
-        
-        # product space dofs ij and coordinates (x_i, y_j)
-        self.dofs = [ij for ij in range(len(dofs)**2)] # sets stiffness sparsity pattern
-        self.product_dofs = [(i,j) for i in dofs for j in dofs] 
-        self.product_dof_coords = [(x.item(),y.item()) for x in dof_coords for y in dof_coords]
-        
-        # dictionaries for dof/coordinate mapping
-        self._dofs_to_product_dofs = dict(zip(self.dofs, self.product_dofs)) # ij -> (i,j)
-        self._product_dofs_to_dofs = dict(zip(self.product_dofs, self.dofs)) # (i,j) -> ij 
-        self._dofs_to_coords = dict(zip(self.dofs, self.product_dof_coords)) # ij -> (x_i, y_j)
-        self._product_dofs_to_coords = dict(zip(self.product_dofs, self.product_dof_coords)) # (i,j)->(x_i,y_j)
-        
-        # save marginal space dofs and coordinates
-        self.marginal_function_space = function_space
-        self.marginal_dofmap = dofmap
-        self.marginal_dofs = dofs 
-        self.marginal_dof_coords = dof_coords
-        
-        
+      
 class ProductFunctionSpace:
     def __init__(self, V):
         # V is fenics.FunctionSpace
         self.V = V
-        self.V_mesh = V.ufl_domain()
+        self.V_mesh = V.mesh()
+#         self.V_mesh = V.ufl_domain()
         self.dofmap = ProductDofMap(V)
         self.mass = self._compute_mass()
-        self.dim = V.dim()**2
         
     def dofs(self):
         # need to do bijections that can be
@@ -129,27 +132,10 @@ class ProductFunctionSpace:
     def marginal_mesh(self):
         return self.V_mesh
     
+    def dim(self):
+        return self.V.dim()**2
 
-class ProductFunction:
-    def __init__(self, W):
-        # initializes product space function 
-        # f(x,y) = sum_ij f_ij phi_i(x)phi_j(y)
-        # where f_ij = f(x_i, y_j)
-        # by default f_ij=0 for all ij
-        self.W = W
-        n_dofs = len(W.dofmap.dofs)
-        self.array = np.zeros(n_dofs)
-        
-    def assign(self, f):
-        # assigns values in array f to product function f(x,y)
-        # i.e. f contains f_ij
-        f_array = self.array
-        dof_to_coords = self.W.dofmap._dofs_to_coords
-        for dof, xy in dof_to_coords.items():
-            f_array[dof] = f(*xy) # when f is a python function of (x,y)
-        self.array = f_array
-        
-        
+
 class ProductDirichletBC:
     def __init__(self, W, u_bdy, on_product_boundary='default'):
         # on_product_boundary: (x,y) -> True if (x,y) on product boundary, else False
@@ -201,3 +187,53 @@ class ProductDirichletBC:
         return A, b
     
     
+class ProductDofMap:
+    # main usage is to obtain bijections between
+    # dofs ij <-> product dofs (i,j) (defined by Kronecker product)
+    # dofs ij <-> product coordinates (x_i, y_j)
+    def __init__(self, function_space):
+        # marginal dofs and coordinates
+        dofmap = function_space.dofmap()
+        dofs = dofmap.dofs()
+        dof_coords = function_space.tabulate_dof_coordinates()
+        
+        # product space dofs ij and coordinates (x_i, y_j)
+        self.dofs = [ij for ij in range(len(dofs)**2)] # sets stiffness sparsity pattern
+        self.product_dofs = [(i,j) for i in dofs for j in dofs] 
+        self.product_dof_coords = [(x.item(),y.item()) for x in dof_coords for y in dof_coords]
+        
+        # dictionaries for dof/coordinate mapping
+        self._dofs_to_product_dofs = dict(zip(self.dofs, self.product_dofs)) # ij -> (i,j)
+        self._product_dofs_to_dofs = dict(zip(self.product_dofs, self.dofs)) # (i,j) -> ij 
+        self._dofs_to_coords = dict(zip(self.dofs, self.product_dof_coords)) # ij -> (x_i, y_j)
+        self._product_dofs_to_coords = dict(zip(self.product_dofs, self.product_dof_coords)) # (i,j)->(x_i,y_j)
+        
+        # save marginal space dofs and coordinates
+        self.marginal_function_space = function_space
+        self.marginal_dofmap = dofmap
+        self.marginal_dofs = dofs 
+        self.marginal_dof_coords = dof_coords
+
+    
+# TODO: generalize this 
+class ProductFunction:
+    def __init__(self, W):
+        # initializes product space function 
+        # f(x,y) = sum_ij f_ij phi_i(x)phi_j(y)
+        # where f_ij = f(x_i, y_j)
+        # by default f_ij=0 for all ij
+        self.W = W
+        n_dofs = len(W.dofmap.dofs)
+        self.array = np.zeros(n_dofs)
+        
+    def assign(self, f):
+        # assigns values in array f to product function f(x,y)
+        # i.e. f contains f_ij
+        f_array = self.array
+        dof_to_coords = self.W.dofmap._dofs_to_coords
+        for dof, xy in dof_to_coords.items():
+            f_array[dof] = f(*xy) # when f is a python function of (x,y)
+        self.array = f_array
+        
+    def plot(self, marginal_slice):
+        ...

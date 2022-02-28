@@ -7,9 +7,9 @@ import pytest
 
 class TestExpDiffusion:
     
-    def compute_analytic_grads(self, n, gamma):
+    def compute_analytic_grads(self, n, alpha):
         """computes int _m e^m nabla(u) dot nabla(p) dxdy
-        + gamma int nabla(m) dot nabla(_m) dxdy
+        + alpha int nabla(m) dot nabla(_m) dxdy
         where _m is a placeholder for each basis element"""
 
         # given m, solve F(u, m) = 0 for u
@@ -36,12 +36,12 @@ class TestExpDiffusion:
         for i in range(V.dim()):
             _m = Function(V)
             _m.vector()[i] = 1.
-            grad_i = _m * exp(m) * inner(grad(u), grad(p)) * dx + gamma * inner(grad(m), grad(_m)) * dx
+            grad_i = _m * exp(m) * inner(grad(u), grad(p)) * dx + alpha * inner(grad(m), grad(_m)) * dx
             grads[i] = assemble(grad_i)
         return grads[v2d]
 
     def verify_gradient(self, product_grads, n):
-        analytic_grads = self.compute_analytic_grads(n, gamma=1)
+        analytic_grads = self.compute_analytic_grads(n, alpha=1)
         grad_error = np.linalg.norm(product_grads - analytic_grads)
         assert np.log(grad_error) < -10
     
@@ -53,7 +53,7 @@ class TestExpDiffusion:
         bc = pf.ProductDirichletBC(W, 0, 'on_boundary')
 
         eqn = ExpDiffusion(W, ['exp(-x[0])', 'cos(x[0])'], bc)
-        grads = eqn.compute_gradient(['cos(x[0])', 'sin(x[0])'], gamma=1)
+        grads = eqn.compute_gradient(['cos(x[0])', 'sin(x[0])'], alpha=1)
         p2f = [-i-j*n for i in range(1,n+1) for j in range(n)]
         grads = grads.flatten()[p2f]
         self.verify_gradient(grads, n)

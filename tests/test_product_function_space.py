@@ -8,11 +8,11 @@ class TestProductFunctionSpace():
     def test_basic_properties(self):
         n = 22
         mesh = fenics.UnitIntervalMesh(n-1)
-        V1 = fenics.FunctionSpace(mesh, 'CG', 1)
-        V = prod.ProductFunctionSpace(V1)
+        V = fenics.FunctionSpace(mesh, 'CG', 1)
+        W = prod.ProductFunctionSpace(V)
 
-        assert V.marginal_mesh() == mesh
-        assert V.marginal_function_space() == V1
+        assert W.marginal_mesh() == mesh
+        assert W.marginal_function_space() == V
 
 
 class TestBoundaryConditions():
