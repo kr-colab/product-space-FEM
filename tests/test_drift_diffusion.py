@@ -6,7 +6,7 @@ import pytest
 
 class TestDriftDiffusion:
     
-    def setup_W(self, n=21):
+    def setup_W(self, n=22):
         # set up function space
         mesh = UnitIntervalMesh(n-1)
         h = mesh.hmax()
@@ -20,32 +20,47 @@ class TestDriftDiffusion:
         u_h = dd.solve(eps, b)
 
         # analytic solution
-        u = pf.ProductFunction(W)
-        u.assign(soln)
-        u = u.array
+        u = pf.to_array(soln, W)
         
         L2_error = np.sqrt(W.integrate((u - u_h)**2))
         assert np.log(L2_error) < -10.
         
-    # TODO: test for b as ndarray
-    def test_verify_gradient(self):
-        h = 1.
-        eps = 1.
-        b = ['x[0]', 'x[0]']
-        b_ = ['x[0] * x[0]', '-x[0]']
-        f = (['exp(-x[0])'], ['cos(x[0])'])
-        n = 11
-        alpha, beta = 0.1, 0.1
-        
-        mesh = UnitIntervalMesh(n-1)
-        V = FunctionSpace(mesh, 'CG', 1)
-        W = pf.ProductFunctionSpace(V)
+    def test_gradient(self):
+        n = 22
+        W, V = self.setup_W(n)
+        f = (['-1.0'], ['1.0']) # forcing function
         bc = pf.ProductDirichletBC(W, 0, 'on_boundary')
-
         eqn = DriftDiffusion(W, f, bc)
-        rates = eqn.verify_gradient(h, eps, b, b_, alpha, beta)
-        for r in rates:
-            assert np.abs(r - 4.0) < 1e-3
+        
+        # regularization parameters
+        alpha, beta = 1.0e-08, 0.
+        
+        # diffusion and drift coefficients
+        eps = -9.0e-02 
+        b_true = eqn.b_str_to_array(['-2*sin(2*pi*x[0])', '-2*cos(2*pi*x[0])+2'])
+        
+        # data
+        u_d = eqn.solve(eps, b_true)
+        del eqn
+        eqn = DriftDiffusion(W, f, bc, u_d)
+
+        h = 0.001
+        b_dim = 2 * V.dim()
+        eye = np.eye(b_dim)
+        diff_quots = np.zeros(b_dim)
+        b0 = np.zeros(b_dim)
+        for i in range(b_dim):
+            bpert = b0 + h * eye[i]
+            J = eqn.loss_functional(eps, b0, alpha, beta)
+            Jpert = eqn.loss_functional(eps, bpert, alpha, beta)
+            diff_quots[i] = Jpert / h - J / h
+
+        J_grads = eqn.compute_gradient(eps, b0, alpha, beta)[0]
+        rel_percent_err = 100 * np.abs((diff_quots - J_grads) / diff_quots)
+        b1_err, b2_err = np.split(rel_percent_err, [n])
+        
+        # require no more than 3% error
+        assert max(np.max(b1_err), np.max(b2_err)) < 3.0 
         
     @pytest.mark.parametrize("n", [27, 32])
     def test_sinusoid(self, n):
@@ -73,9 +88,7 @@ class TestDriftDiffusion:
         W, V = self.setup_W(n)
         
         eps = 1
-        b1 = Expression('x[0]', element=V.ufl_element())
-        b2 = Expression('x[0]', element=V.ufl_element())
-        b = (b1, b2)
+        b = ('x[0]', 'x[0]')
         
         # force function f = sum_i X_iY_i
         X = ['x[0] * x[0]', 'x[0]', '1', '-2 * eps']
@@ -95,10 +108,11 @@ class TestDriftDiffusion:
     def test_exponential(self, n):
         W, V = self.setup_W(n)
         
+        # parameters
         eps = 1
-        b1 = Expression('x[0]', element=V.ufl_element())
-        b2 = Expression('x[0]', element=V.ufl_element())
-        b = (b1, b2)
+        b = ('x[0]', 'x[0]')
+        b1 = Expression(b[0], element=V.ufl_element())
+        b2 = Expression(b[1], element=V.ufl_element())
         
         # force function f = sum_i X_iY_i
         X = ['exp(x[0]) * 2 * eps * x[0] * x[0]', 
