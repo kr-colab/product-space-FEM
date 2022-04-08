@@ -342,7 +342,6 @@ class DriftDiffusion:
             
         return dAdb, dbdb, dJdb
     
-    # can probably inherit this 
     def compute_gradient(self, eps, b, alpha, beta, loss=False):
         # given m solve for u
         u = self.solve(eps, b)
@@ -383,19 +382,20 @@ class HittingTimes:
             self.data = np.zeros(W.dim())
         
     # for now sig is assumed constant
-    def solve(self, sig, mu):
+    def solve(self, mu, sig):
         u, v = TrialFunction(self.V), TestFunction(self.V)
         mu = pf.to_Function(mu, self.V)
+        sig = pf.to_Function(sig, self.V)
         
         fxs = [pf.to_Function(fx, self.V) for fx in self.fx]
         fys = [pf.to_Function(fy, self.V) for fy in self.fy]
         
-        Ax_forms = [-sig**2 / 2 * u.dx(0) * v.dx(0) * dx,
+        Ax_forms = [-0.5 * u.dx(0) * Dx(sig**2 * v, 0) * dx,
                     u * v * dx,
                     mu * u.dx(0) * v * dx,
                     u * v * dx]
         Ay_forms = [u * v * dx,
-                    -sig**2 / 2 * u.dx(0) * v.dx(0) * dx,
+                    -0.5 * u.dx(0) * Dx(sig**2 * v,0) * dx,
                     u * v * dx,
                     mu * u.dx(0) * v * dx]
         A_forms = list(zip(Ax_forms, Ay_forms))
@@ -415,18 +415,33 @@ class HittingTimes:
         mu = mu.vector()[:] # Function to array
         return mu
 
-    def loss_functional(self, sig, mu, alpha, beta):
-        u = self.solve(sig, mu)
-        u_d = self.data
-        mu = pf.to_Function(mu, self.V)
-        J = 1/2 * self.W.integrate((u - u_d)**2) 
-        
+    def get_reg_params(self, alpha, beta):
         if isinstance(alpha, (list, tuple)):
             alpha1, alpha2 = alpha
         elif isinstance(alpha, float):
             alpha1 = alpha2 = alpha
-        J += alpha1/2 * assemble(mu.dx(0)**2 * dx) + alpha2/2 * assemble(mu**2 * dx)
-        J += beta/2 * sig**2
+            
+        if isinstance(beta, (list, tuple)):
+            beta1, beta2 = beta
+        elif isinstance(beta, float):
+            beta1 = beta2 = beta
+            
+        return alpha1, alpha2, beta1, beta2
+    
+    def loss_functional(self, mu, sig, alpha, beta):
+        # square error term
+        u = self.solve(mu, sig)
+        u_d = self.data
+        J = 1/2 * self.W.integrate((u - u_d)**2) 
+        
+        # regularization terms
+        mu = pf.to_Function(mu, self.V)
+        sig = pf.to_Function(sig, self.V)
+        alpha1, alpha2, beta1, beta2 = self.get_reg_params(alpha, beta)
+        J += alpha1 / 2 * assemble(mu.dx(0)**2 * dx) # smoothing mu
+        J += alpha2 / 2 * assemble(mu**2 * dx) # sparsing mu
+        J += beta1 / 2 * assemble(sig.dx(0)**2 * dx) # smoothing sig
+        J += beta2 / 2 * assemble(sig**2 * dx) # sparsing sig
         return J
         
     def solve_adjoint(self, u):
@@ -440,77 +455,105 @@ class HittingTimes:
         return p
     
     # meat and potatoes: assemble dbdm, dAdm, dJdm
-    def assemble_partials(self, sig, mu, alpha, beta):
-        mu = pf.to_Function(mu, self.V)
-        
-        V_dim = self.V.dim()
-        mu_dim = V_dim
+    def assemble_partials(self, mu, sig, alpha, beta):
+        # tensor dimensions
         W_dim = self.W.dim()
+        mu_dim = len(mu)
+        sig_dim = len(sig)
         dom = self.V.ufl_domain() # for integrating 1 * dx
         
-        # here b is independent of mu so dbdm = 0
-        dbdm = np.zeros((W_dim, mu_dim))
+        # parameters
+        mu = pf.to_Function(mu, self.V)
+        sig = pf.to_Function(sig, self.V)
 
-        # compute gradients of A and J wrt eps and 
-        # b_r(x,y) = (phi_r(x), phi_r(y)) for 0 < r < n
-        dAds = np.zeros((W_dim, W_dim))
+        # compute gradients of A, b, and J wrt mu, sig
+        # here b is independent of mu, sig so dbdm = dbds = 0
         dAdm = np.zeros((W_dim, W_dim, mu_dim))
-        dJds = beta * sig
+        dAds = np.zeros((W_dim, W_dim, sig_dim))
+        dbdm = np.zeros((W_dim, mu_dim))
+        dbds = np.zeros((W_dim, sig_dim))
         dJdm = np.zeros((1, mu_dim))
+        dJds = np.zeros((1, sig_dim))
         
         uu, v = TrialFunction(self.V), TestFunction(self.V)
-        dAds_forms = list(zip([uu.dx(0) * v.dx(0) * dx, uu * v * dx], 
-                              [uu * v * dx, uu.dx(0) * v.dx(0) * dx]))
-        dAds = pf.assemble_kron(dAds_forms)
-        
         bdy_dofs = self.bc.get_product_boundary_dofs()
-        if isinstance(alpha, (list, tuple)):
-            alpha1, alpha2 = alpha
-        elif isinstance(alpha, float):
-            alpha1 = alpha2 = alpha
-        for r in range(V_dim):
+        alpha1, alpha2, beta1, beta2 = self.get_reg_params(alpha, beta)
+        for r in range(mu_dim):
             phi_r = Function(self.V)
             phi_r.vector()[r] = 1.
 
-            # dAdm = (phi_r u' v dx) (u v dy)
+            # dAdm = (phi_r u' v dx) (u v dy) + (u v dx) (phi_r u' v dy)
             dAdm_forms = list(zip([phi_r * uu.dx(0) * v * dx, uu * v * dx], 
                                   [uu * v * dx, phi_r * uu.dx(0) * v * dx]))
             dAdm[:,:,r] = pf.assemble_kron(dAdm_forms)
             dAdm[bdy_dofs] = 0
+            
+            # dAds = -(u' (v sig phi_r)' dx) (u v dy) - (u v dx) (u' (v sig phi_r)' dy)
+            dAds_forms = list(zip([uu.dx(0) * Dx(v * sig * phi_r, 0) * dx, uu * v * dx], 
+                                  [uu * v * dx, uu.dx(0) * Dx(v * sig * phi_r, 0) * dx]))
+            dAds[:,:,r] = -pf.assemble_kron(dAds_forms)
+            dAds[bdy_dofs] = 0
 
-            # dJdm has L2(mu) and L2(grad(mu)) terms
-            # dJdm = alpha1 * (mu' * phi'_r dx) (1 dy) + (1 dx) (mu' * phi'_r dy)
-            #         + alpha2 * (mu * phi_r dx) (1 dy) + (1 dx) (mu * phi_r * dy)
-            #
+            # dJdm has smoothing and sparsity regularization
+            # dJdm = alpha1{(mu' phi'_r dx) (1 dy) + (1 dx) (mu' phi'_r dy)}
+            #         + alpha2{(mu phi_r dx) (1 dy) + (1 dx) (mu phi_r dy)}
+            
+            # mu smoothing term
             x_forms1 = [mu.dx(0) * phi_r.dx(0) * dx, 1 * dx(domain=dom)]
             y_forms1 = [1 * dx(domain=dom), mu.dx(0) * phi_r.dx(0) * dx]
             dJdm_forms1 = list(zip(x_forms1, y_forms1))
+            dJdm[0, r] = alpha1 * pf.assemble_kron(dJdm_forms1)
             
+            # mu decay term
             x_forms2 = [mu * phi_r * dx, 1 * dx(domain=dom)]
             y_forms2 = [1 * dx(domain=dom), mu * phi_r * dx]
             dJdm_forms2 = list(zip(x_forms2, y_forms2))
+            dJdm[0, r] += alpha2 * pf.assemble_kron(dJdm_forms2)
             
-            dJdm[0, r] = alpha1 * pf.assemble_kron(dJdm_forms1) + alpha2 * pf.assemble_kron(dJdm_forms2)
+            # dJds has smoothing and sparsity regularization
+            # dJds = beta1{(sig' phi'_r dx) (1 dy) + (1 dx) (sig' phi'_r dy)}
+            #         + beta2{(sig phi_r dx) (1 dy) + (1 dx) (sig phi_r dy)}}
             
-        return dAdm, dbdm, dJdm
+            # sigma smoothing term
+            x_forms1 = [sig.dx(0) * phi_r.dx(0) * dx, 1 * dx(domain=dom)]
+            y_forms1 = [1 * dx(domain=dom), sig.dx(0) * phi_r.dx(0) * dx]
+            dJds_forms1 = list(zip(x_forms1, y_forms1))
+            dJds[0, r] = beta1 * pf.assemble_kron(dJds_forms1)
+            
+            # sigma decay terms
+            x_forms2 = [sig * phi_r * dx, 1 * dx(domain=dom)]
+            y_forms2 = [1 * dx(domain=dom), sig * phi_r * dx]
+            dJds_forms2 = list(zip(x_forms2, y_forms2))
+            dJds[0, r] += beta2 * pf.assemble_kron(dJds_forms2)
+
+        return (dAdm, dAds), (dbdm, dbds), (dJdm, dJds)
     
-    # can probably inherit this 
-    def compute_gradient(self, sig, mu, alpha, beta):
+    def compute_gradient(self, mu, sig, alpha, beta):
         # given m solve for u
-        u = self.solve(sig, mu)
+        u = self.solve(mu, sig)
         
         # given m, u solve for p
         p = self.solve_adjoint(u)
         
         # given m, u, p compute ∂A/∂m, ∂b/∂m, and ∂J/∂m
-        dAdm, dbdm, dJdm = self.assemble_partials(sig, mu, alpha, beta)
+        dA, db, dJ = self.assemble_partials(mu, sig, alpha, beta)
+        dAdm, dAds = dA
+        dbdm, dbds = db
+        dJdm, dJds = dJ
         
-        # compute gradient = p * (∂b/∂m - ∂A/∂m * u) + ∂J/∂m
+        # compute mu gradient = p * (∂b/∂m - ∂A/∂m * u) + ∂J/∂m
         dFdm = dbdm - np.tensordot(dAdm, u, axes=(1,0))
-        grad = -p.dot(dFdm) + dJdm
-        return grad
+        mu_grad = -p.dot(dFdm) + dJdm
         
-    def loss_and_grad(self, sig, mu, alpha, beta):
-        loss = self.loss_functional(sig, mu, alpha, beta)
-        grad = self.compute_gradient(sig, mu, alpha, beta)
+        # compute sig gradient = p * (∂b/∂s - ∂A/∂s * u) + ∂J/∂s
+        dFds = dbds - np.tensordot(dAds, u, axes=(1,0))
+        sig_grad = -p.dot(dFds) + dJds
+        
+        return mu_grad, sig_grad
+        
+    def loss_and_grad(self, mu_sig, alpha, beta):
+        mu, sig = np.split(mu_sig, [self.V.dim()])
+        loss = self.loss_functional(mu, sig, alpha, beta)
+        mu_grad, sig_grad = self.compute_gradient(mu, sig, alpha, beta)
+        grad = np.concatenate((mu_grad[0], sig_grad[0]))
         return loss, grad
