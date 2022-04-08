@@ -14,6 +14,7 @@ class Equation(ABC):
         self.fx, self.fy = f
         self.bc = bc
         
+    @abstractmethod
     def solve(self, m, *args):
         u, v = TrialFunction(self.V), TestFunction(self.V)
         
@@ -30,7 +31,6 @@ class Equation(ABC):
         self.stiffness = A
         return U
     
-    @abstractmethod
     def solve_adjoint(self, m, u, u_d=None):
         p, v = TrialFunction(self.V), TestFunction(self.V)
         mass = assemble(p * v * dx).array()
@@ -42,7 +42,7 @@ class Equation(ABC):
         p = np.linalg.solve(A_adj, b_adj).T
         return p
     
-    # meat and potatoes
+    @abstractmethod
     def assemble_partials(self, m, alpha=0):
         pass
     
@@ -208,20 +208,23 @@ class ExpDiffusion:
         return grads
 
     
-# NOTE: this is not functioning properly 
 # -eps Laplacian(u) + b•grad(u) = f
-# parameters: eps (float), b tuple(b1, b2), b1 (array), b2 (array)
+# parameters: eps (float), b=concat(b1, b2), b1 (array), b2 (array)
 # assumes drift b = (b_1(x), b_2(y))
 class DriftDiffusion:
-    def __init__(self, W, f, bc):
+    def __init__(self, W, f, bc, u_d=None, alt_reg=False):
         self.W = W            # product function space
         self.V = W.V          # marginal function space
         self.fx, self.fy = f  # forcing function
         self.bc = bc          # boundary conditions
+        self.data = u_d if u_d is not None else np.zeros(W.dim())
+        self.alt_reg = alt_reg
         
+    # can accept b as tuple of string representations of (b1(x), b2(y))
+    # or b as arrays concat(b1, b2)
     def solve(self, eps, b):
         u, v = TrialFunction(self.V), TestFunction(self.V)
-        b1, b2 = self.b_as_function(b)
+        b1, b2 = self.split_b_to_Function(b)
         
         fxs = [pf.to_Function(fx, self.V) for fx in self.fx]
         fys = [pf.to_Function(fy, self.V) for fy in self.fy]
@@ -243,38 +246,50 @@ class DriftDiffusion:
         A, b = pf.assemble_product_system(A_forms, b_forms, self.bc)
         U = np.linalg.solve(A, b)
         self.stiffness = A
+        self.rhs = b
         return U
     
-    def b_as_function(self, b):
-        b1, b2 = b
+    def split_b_to_Function(self, b):
+        if isinstance(b[0], str):
+            b1, b2 = b
+        else:
+            i = int(len(b) / 2)
+            b1, b2 = np.split(b, [i])
         b1 = pf.to_Function(b1, self.V)
         b2 = pf.to_Function(b2, self.V)
         return b1, b2
             
-    def loss_functional(self, eps, b, u_d, alpha, beta):
-        b1, b2 = self.b_as_function(b)
-        u = self.solve(eps, (b1, b2))
+    def b_str_to_array(self, b):
+        # b = [b1, b2] as strings
+        b1, b2 = self.split_b_to_Function(b)
+        return np.concatenate((b1.vector()[:], b2.vector()[:]))
+
+    def loss_functional(self, eps, b, alpha, beta):
+        u = self.solve(eps, b)
+        u_d = self.data
+        b1, b2 = self.split_b_to_Function(b)
         J = 1/2 * self.W.integrate((u - u_d)**2) 
-        J += alpha/2 * assemble((b1**2 + b2**2) * dx) 
+        if self.alt_reg:
+            J += alpha/2 * (assemble(b1.dx(0)**2 * dx) + assemble(b2.dx(0)**2 * dx))
+        else:
+            J += alpha/2 * (assemble(b1**2 * dx) + assemble(b2**2 * dx)) 
         J += beta/2 * eps**2
         return J
         
-    def solve_adjoint(self, eps, b, u, u_d=None):
+    def solve_adjoint(self, u):
         p, v = TrialFunction(self.V), TestFunction(self.V)
         mass = assemble(p * v * dx).array()
-        u_d = np.zeros_like(u) if u_d is None else u_d
+        u_d = self.data
         resid = -(u - u_d)
         b_adj = resid.T.dot(np.kron(mass, mass))
-
-        A_adj, b_adj = self.bc.apply(self.stiffness.T, b_adj)
-        p = np.linalg.solve(A_adj, b_adj).T
+#         A_adj, b_adj = self.bc.apply(self.stiffness.T, b_adj.T)
+        A_adj, b_adj = self.stiffness.T, b_adj
+        p = np.linalg.solve(A_adj, b_adj)
         return p
     
     # meat and potatoes: assemble dbdm, dAdm, dJdm
     def assemble_partials(self, eps, b, alpha, beta):
-        b1, b2 = b
-        b1 = pf.to_Function(b1, self.V)
-        b2 = pf.to_Function(b2, self.V)
+        b1, b2 = self.split_b_to_Function(b)
         
         V_dim = self.V.dim()
         b_dim = 2 * V_dim
@@ -282,7 +297,7 @@ class DriftDiffusion:
         dom = self.V.ufl_domain() # for integrating 1 * dx
         
         # here b is independent of m so dbdm = 0
-        dbdb = np.zeros((self.W.dim(), b_dim))
+        dbdb = np.zeros((W_dim, b_dim))
 
         # compute gradients of A and J wrt eps and 
         # b_r(x,y) = (phi_r(x), 0) for 1 <= r <= n
@@ -296,8 +311,9 @@ class DriftDiffusion:
         dAde_forms = list(zip([uu.dx(0) * v.dx(0) * dx, uu * v * dx], 
                               [uu * v * dx, uu.dx(0) * v.dx(0) * dx]))
         dAde = pf.assemble_kron(dAde_forms)
+        
+        bdy_dofs = self.bc.get_product_boundary_dofs()
         for r in range(V_dim):
-            rr = r + V_dim # to index (0, phi_r) assembly
             phi_r = Function(self.V)
             phi_r.vector()[r] = 1.
 
@@ -306,56 +322,195 @@ class DriftDiffusion:
             dAdb1_forms = list(zip([phi_r * uu.dx(0) * v * dx], [uu * v * dx]))
             dAdb2_forms = list(zip([uu * v * dx], [phi_r * uu.dx(0) * v * dx]))
             dAdb[:,:,r] = pf.assemble_kron(dAdb1_forms)
-            dAdb[:,:,rr] = pf.assemble_kron(dAdb2_forms)
+            dAdb[:,:,r + V_dim] = pf.assemble_kron(dAdb2_forms)
+            dAdb[bdy_dofs] = 0
 
-            # dJdb1 = (b1 * phi_r dx) (1 dy)
-            # dJdb2 = (1 dx) (b2 * phi_r dx)
-            dJdb1_forms = list(zip([b1 * phi_r * dx], [1 * dx(domain=dom)]))
-            dJdb2_forms = list(zip([1 * dx(domain=dom)], [b2 * phi_r * dx]))
-            dJdb[0,r] = alpha * pf.assemble_kron(dJdb1_forms)
-            dJdb[0,rr] = alpha * pf.assemble_kron(dJdb2_forms)
-        
+            if self.alt_reg:
+                # dJdb1 = (b1' * phi'_r dx) (1 dy)
+                # dJdb2 = (1 dx) (b2' * phi'_r dx)
+                dJdb1_forms = list(zip([b1.dx(0) * phi_r.dx(0) * dx], [1 * dx(domain=dom)]))
+                dJdb2_forms = list(zip([1 * dx(domain=dom)], [b2.dx(0) * phi_r.dx(0) * dx]))
+                dJdb[0, r] = alpha * pf.assemble_kron(dJdb1_forms)
+                dJdb[0, r + V_dim] = alpha * pf.assemble_kron(dJdb2_forms)
+            else:
+                # dJdb1 = (b1 * phi_r dx) (1 dy)
+                # dJdb2 = (1 dx) (b2 * phi_r dx)
+                dJdb1_forms = list(zip([b1 * phi_r * dx], [1 * dx(domain=dom)]))
+                dJdb2_forms = list(zip([1 * dx(domain=dom)], [b2 * phi_r * dx]))
+                dJdb[0,r] = alpha * pf.assemble_kron(dJdb1_forms)
+                dJdb[0,r + V_dim] = alpha * pf.assemble_kron(dJdb2_forms)
+            
         return dAdb, dbdb, dJdb
     
     # can probably inherit this 
-    def compute_gradient(self, eps, b, alpha, beta):
+    def compute_gradient(self, eps, b, alpha, beta, loss=False):
         # given m solve for u
         u = self.solve(eps, b)
         
         # given m, u solve for p
-        p = self.solve_adjoint(eps, b, u)
+        p = self.solve_adjoint(u)
         
         # given m, u, p compute ∂A/∂m, ∂b/∂m, and ∂J/∂m
         dAdm, dbdm, dJdm = self.assemble_partials(eps, b, alpha, beta)
         
         # compute gradient = p * (∂b/∂m - ∂A/∂m * u) + ∂J/∂m
         dFdm = dbdm - np.tensordot(dAdm, u, axes=(1,0))
-        grad = p.dot(dFdm) + dJdm
-        return grad
-    
-    def b_str_to_array(self, b):
-        # b = [b1, b2] as strings
-        b1, b2 = b
-        b1 = pf.to_Function(b1, self.V)
-        b2 = pf.to_Function(b2, self.V)
-        return np.concatenate((b1.vector()[:], b2.vector()[:]))
-    
-    def verify_gradient(self, h, eps, b, b_, alpha=0.1, beta=0.1, u_d=None):
-        # assumes b, b_ are lists of strings, need to accept ndarrays
-        if u_d is None:
-            u_d = np.zeros(self.W.dim())
-        def grad_error(h, b, b_):
-            b_hb = [f'{b[i]} + {h} * ({b_[i]})' for i in range(len(b))]
-            _J = self.loss_functional(eps, b_hb, u_d, alpha, beta)
-            J = self.loss_functional(eps, b, u_d, alpha, beta)
-            grads = self.compute_gradient(eps, b, alpha, beta)
-            
-            _b_ = self.b_str_to_array(b_)
-            error = _J - J - h * np.dot(grads, _b_)
-            return error
+        grad = -p.dot(dFdm) + dJdm
         
-        hs = [h / (2**k) for k in range(5)]
-        es = [grad_error(h_, b, b_) for h_ in hs]
-        err_rates = [(es[i] / es[i+1]).item() for i in range(len(es)-1)]
-        return err_rates
+        if loss:
+            J = self.loss_functional(eps, b, alpha, beta)
+            return J, grad
+        else:
+            return grad
     
+    
+# sig^2/2 Laplacian(u) + mu•grad(u) = f
+# parameters: sig (float), mu (array)
+class HittingTimes:
+    def __init__(self, W, f, bc, u_d=None, m_true=None):
+        self.W = W            # product function space
+        self.V = W.V          # marginal function space
+        self.fx, self.fy = f  # forcing function
+        self.bc = bc          # boundary conditions
+        
+        # get data directly (u_d) or implicitly (m_true) or null
+        if u_d is not None:
+            self.data = u_d
+        elif m_true is not None:
+            self.m_true = m_true
+            self.data = self.solve(*m_true)
+        else:
+            self.data = np.zeros(W.dim())
+        
+    # for now sig is assumed constant
+    def solve(self, sig, mu):
+        u, v = TrialFunction(self.V), TestFunction(self.V)
+        mu = pf.to_Function(mu, self.V)
+        
+        fxs = [pf.to_Function(fx, self.V) for fx in self.fx]
+        fys = [pf.to_Function(fy, self.V) for fy in self.fy]
+        
+        Ax_forms = [-sig**2 / 2 * u.dx(0) * v.dx(0) * dx,
+                    u * v * dx,
+                    mu * u.dx(0) * v * dx,
+                    u * v * dx]
+        Ay_forms = [u * v * dx,
+                    -sig**2 / 2 * u.dx(0) * v.dx(0) * dx,
+                    u * v * dx,
+                    mu * u.dx(0) * v * dx]
+        A_forms = list(zip(Ax_forms, Ay_forms))
+        
+        bx_forms = [fx * v * dx for fx in fxs]
+        by_forms = [fy * v * dx for fy in fys]
+        b_forms = list(zip(bx_forms, by_forms))
+        
+        A, b = pf.assemble_product_system(A_forms, b_forms, self.bc)
+        u_h = np.linalg.solve(A, b)
+        self.stiffness = A
+        self.rhs = b
+        return u_h
+    
+    def mu_str_to_array(self, mu):
+        mu = pf.to_Function(mu, self.V) # string to Function
+        mu = mu.vector()[:] # Function to array
+        return mu
+
+    def loss_functional(self, sig, mu, alpha, beta):
+        u = self.solve(sig, mu)
+        u_d = self.data
+        mu = pf.to_Function(mu, self.V)
+        J = 1/2 * self.W.integrate((u - u_d)**2) 
+        
+        if isinstance(alpha, (list, tuple)):
+            alpha1, alpha2 = alpha
+        elif isinstance(alpha, float):
+            alpha1 = alpha2 = alpha
+        J += alpha1/2 * assemble(mu.dx(0)**2 * dx) + alpha2/2 * assemble(mu**2 * dx)
+        J += beta/2 * sig**2
+        return J
+        
+    def solve_adjoint(self, u):
+        p, v = TrialFunction(self.V), TestFunction(self.V)
+        mass = assemble(p * v * dx).array()
+        u_d = self.data
+        resid = -(u - u_d)
+        b_adj = resid.T.dot(np.kron(mass, mass))
+        A_adj, b_adj = self.stiffness.T, b_adj
+        p = np.linalg.solve(A_adj, b_adj)
+        return p
+    
+    # meat and potatoes: assemble dbdm, dAdm, dJdm
+    def assemble_partials(self, sig, mu, alpha, beta):
+        mu = pf.to_Function(mu, self.V)
+        
+        V_dim = self.V.dim()
+        mu_dim = V_dim
+        W_dim = self.W.dim()
+        dom = self.V.ufl_domain() # for integrating 1 * dx
+        
+        # here b is independent of mu so dbdm = 0
+        dbdm = np.zeros((W_dim, mu_dim))
+
+        # compute gradients of A and J wrt eps and 
+        # b_r(x,y) = (phi_r(x), phi_r(y)) for 0 < r < n
+        dAds = np.zeros((W_dim, W_dim))
+        dAdm = np.zeros((W_dim, W_dim, mu_dim))
+        dJds = beta * sig
+        dJdm = np.zeros((1, mu_dim))
+        
+        uu, v = TrialFunction(self.V), TestFunction(self.V)
+        dAds_forms = list(zip([uu.dx(0) * v.dx(0) * dx, uu * v * dx], 
+                              [uu * v * dx, uu.dx(0) * v.dx(0) * dx]))
+        dAds = pf.assemble_kron(dAds_forms)
+        
+        bdy_dofs = self.bc.get_product_boundary_dofs()
+        if isinstance(alpha, (list, tuple)):
+            alpha1, alpha2 = alpha
+        elif isinstance(alpha, float):
+            alpha1 = alpha2 = alpha
+        for r in range(V_dim):
+            phi_r = Function(self.V)
+            phi_r.vector()[r] = 1.
+
+            # dAdm = (phi_r u' v dx) (u v dy)
+            dAdm_forms = list(zip([phi_r * uu.dx(0) * v * dx, uu * v * dx], 
+                                  [uu * v * dx, phi_r * uu.dx(0) * v * dx]))
+            dAdm[:,:,r] = pf.assemble_kron(dAdm_forms)
+            dAdm[bdy_dofs] = 0
+
+            # dJdm has L2(mu) and L2(grad(mu)) terms
+            # dJdm = alpha1 * (mu' * phi'_r dx) (1 dy) + (1 dx) (mu' * phi'_r dy)
+            #         + alpha2 * (mu * phi_r dx) (1 dy) + (1 dx) (mu * phi_r * dy)
+            #
+            x_forms1 = [mu.dx(0) * phi_r.dx(0) * dx, 1 * dx(domain=dom)]
+            y_forms1 = [1 * dx(domain=dom), mu.dx(0) * phi_r.dx(0) * dx]
+            dJdm_forms1 = list(zip(x_forms1, y_forms1))
+            
+            x_forms2 = [mu * phi_r * dx, 1 * dx(domain=dom)]
+            y_forms2 = [1 * dx(domain=dom), mu * phi_r * dx]
+            dJdm_forms2 = list(zip(x_forms2, y_forms2))
+            
+            dJdm[0, r] = alpha1 * pf.assemble_kron(dJdm_forms1) + alpha2 * pf.assemble_kron(dJdm_forms2)
+            
+        return dAdm, dbdm, dJdm
+    
+    # can probably inherit this 
+    def compute_gradient(self, sig, mu, alpha, beta):
+        # given m solve for u
+        u = self.solve(sig, mu)
+        
+        # given m, u solve for p
+        p = self.solve_adjoint(u)
+        
+        # given m, u, p compute ∂A/∂m, ∂b/∂m, and ∂J/∂m
+        dAdm, dbdm, dJdm = self.assemble_partials(sig, mu, alpha, beta)
+        
+        # compute gradient = p * (∂b/∂m - ∂A/∂m * u) + ∂J/∂m
+        dFdm = dbdm - np.tensordot(dAdm, u, axes=(1,0))
+        grad = -p.dot(dFdm) + dJdm
+        return grad
+        
+    def loss_and_grad(self, sig, mu, alpha, beta):
+        loss = self.loss_functional(sig, mu, alpha, beta)
+        grad = self.compute_gradient(sig, mu, alpha, beta)
+        return loss, grad

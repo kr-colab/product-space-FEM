@@ -3,6 +3,86 @@ import scipy.sparse as sps
 from fenics import *
 
 
+# CONVERTERS
+# from strings
+def string_to_Function(string, V, proj=False):
+    if proj:
+        return project(Expression(string, element=V.ufl_element()), V)
+    else:
+        return interpolate(Expression(string, element=V.ufl_element()), V)
+    
+def string_to_array(string, V, proj=False):
+    func = string_to_Function(string, V, proj)
+    return func.vector()[:]
+    
+# from python functions
+def pyfunc_to_Function(pyfunc, V):
+    pyfunc_array = pyfunc_to_array(pyfunc, V)
+    return array_to_Function(pyfunc_array, V)
+
+def pyfunc_to_array(pyfunc, V):
+    dof_coords = V.tabulate_dof_coordinates()
+    return np.array([pyfunc(*x) for x in dof_coords])
+
+# from dolfin Functions
+def Function_to_array(func):
+    return func.vector()[:]
+
+# from numpy arrays
+def array_to_Function(array, V):
+    f = Function(V)
+    f.vector()[:] = array.copy()
+    return f
+
+# from ufl forms
+def form_to_array(form):
+    array = assemble(form)
+    rank = len(form.arguments())
+    if rank==0:
+        return array.real
+    elif rank==1:
+        return array[:]
+    elif rank==2:
+        return array.array()
+    
+# to dolfin Functions
+def to_Function(func, V):
+    if isinstance(func, str):
+        return string_to_Function(func, V)
+    elif isinstance(func, np.ndarray):
+        return array_to_Function(func, V)
+    elif callable(func):
+        return pyfunc_to_Function(func, V)
+    
+# to numpy arrays
+def to_array(func, V):
+    if isinstance(func, str):
+        return string_to_array(func, V)
+    elif isinstance(func, Function):
+        return Function_to_array(func)
+    elif callable(func):
+        return pyfunc_to_array(func, V)
+    
+# ASSEMBLERS
+# assemble sum_i kron(Ax_i, Ay_i)
+def assemble_kron(forms):
+    # forms = [(Ax_1, Ay_1), ..., (Ax_n, Ay_n)]
+    krons = []
+    for Ax_forms, Ay_forms in forms:
+        Ax_arr = form_to_array(Ax_forms)
+        Ay_arr = form_to_array(Ay_forms)
+        krons.append(np.kron(Ax_arr, Ay_arr))
+    A = sum(krons)
+    return A
+        
+def assemble_product_system(A_forms, b_forms, bc=None):
+    # assembles linear system Au=b
+    A, b = assemble_kron(A_forms), assemble_kron(b_forms)
+    if bc:
+        A, b = bc.apply(A, b)
+    return A, b
+
+# product boundary
 def default_product_boundary(W, x, y):
     # rule which determines if (x,y) is on the product boundary
     # default product boundary is bdy(M)xM cup Mxbdy(M)
@@ -20,87 +100,62 @@ def default_product_boundary(W, x, y):
             
     return on_bdy
             
-def form_to_array(form):
-    rank = len(form.arguments())
-    arr = assemble(form)
-    if rank==0:
-        array = arr.real
-    elif rank==1:
-        array = arr[:]
-    elif rank==2:
-        array = arr.array()
-    return array
-
-## UNTESTED naive implementations to send string, ndarray, python function to FEniCS function
-## can test with 
-## f_from_str = string_to_Function(string, V)
-## f_from_arr = array_to_Function(array, V)
-## f_from_func = pyfunc_to_Function(pyfunc, V)
-## assert assemble((f_from_str - f_from_arr)**2 * dx) < 1e-10
-## assert assemble((f_from_str - f_from_func)**2 * dx) < 1e-10
-## assert assemble((f_from_arr - f_from_func)**2 * dx) < 1e-10
-def string_to_Function(string, V, proj=True):
-    if proj:
-        return project(Expression(string, element=V.ufl_element()), V)
-    else:
-        return interpolate(Expression(string, element=V.ufl_element()), V)
     
-def ndarray_to_Function(ndarray, V):
-    f = Function(V)
-    f.vector()[:] = ndarray.copy()
-    return f
+class ProductDirichletBC:
+    def __init__(self, W, u_bdy, on_product_boundary='default'):
+        # on_product_boundary: (x,y) -> True if (x,y) on product boundary, else False
+        # u_bdy is a map (x,y) -> u(x,y) given that on_bound(x,y)==True
+        # W is ProductFunctionSpace, can use .dofmap to help with on_bound
+        if on_product_boundary in ['on_boundary', 'default']:
+            on_product_boundary = lambda x,y: default_product_boundary(W, x, y)
+        if isinstance(u_bdy, (int, float)):
+            u_bv = float(u_bdy)
+            u_bdy = lambda x,y: u_bv
+            
+        self.product_function_space = W
+        self.marginal_function_space = W.marginal_function_space()
+        self.boundary_values = u_bdy
+        self.on_boundary = on_product_boundary
+            
+    def get_marginal_boundary_dofs(self):
+        bc = DirichletBC(self.marginal_function_space, 0, 'on_boundary')
+        return bc.get_boundary_values().keys()
 
-def pyfunc_to_Function(pyfunc, V):
-    dof_coords = V.tabulate_dof_coordinates()
-    pyfunc_array = np.array([pyfunc(*xy) for xy in dof_coords])
-    return ndarray_to_Function(pyfunc_array, V)
+    def get_product_boundary_dofs(self):
+        # dofs ij where either i or j in marginal bdy dofs
+        marginal_bdy_dofs = self.get_marginal_boundary_dofs()
+        dof_coords = self.product_function_space.dofmap._dofs_to_coords # ij->(x_i,y_j)
+        product_bdy_dofs = []
+        for ij, xy in dof_coords.items():
+            if self.on_boundary(*xy):
+                product_bdy_dofs.append(ij)
+        return product_bdy_dofs
 
-def to_Function(func, V):
-    if isinstance(func, str):
-        return string_to_Function(func, V)
-    elif isinstance(func, np.ndarray):
-        return ndarray_to_Function(func, V)
-    elif callable(func):
-        return pyfunc_to_Function(func, V)
+    def get_product_boundary_coords(self):
+        prod_bdy_dofs = self.get_product_boundary_dofs()
+        dof_to_coords = self.product_function_space.dofmap._dofs_to_coords # ij->(x_i,y_j)
+        product_bdy_coords = [dof_to_coords[ij] for ij in prod_bdy_dofs]
+        return product_bdy_coords
+            
+    def apply(self, A, b):
+        # applies desired bdy conds to system AU=b
+        # for bdy dof ij, replace A[ij] with e[ij]
+        # replace b[ij] with u_bdy(x_i, y_j)
+        e = np.eye(len(A))
+        prod_bdy_dofs = self.get_product_boundary_dofs() # ij on boundary
+        prod_bdy_coords = self.get_product_boundary_coords() # (x_i, y_j) on boundary
+        bvs = [self.boundary_values(*xy) for xy in prod_bdy_coords]
+        for k, ij in enumerate(prod_bdy_dofs):
+            A[ij] = e[ij]
+            b[ij] = bvs[k]
+        return A, b
     
-# assemble sum_i kron(Ax_i, Ay_i)
-def assemble_kron(forms):
-    # forms = [(Ax_1, Ay_1), ..., (Ax_n, Ay_n)]
-    krons = []
-    for BC in forms:
-        Ax_forms, Ay_forms = BC
-        B_i = form_to_array(Ax_forms)
-        C_i = form_to_array(Ay_forms)
-        krons.append(np.kron(B_i, C_i))
-    A = sum(krons)
-        
-    return A
-        
-def assemble_product(A_forms, b_forms):
-    # assembles linear system AU=b where
-    # A = sum_i kron(B_i,C_i)
-    # b = sum_i kron(c_i,d_i)
-
-    # LHS & RHS assembly
-    A = assemble_kron(A_forms)
-    b = assemble_kron(b_forms)
-
-    return A, b
-
-def assemble_product_system(A_forms, b_forms, bc=None):
-    # assemble forms
-    A, b = assemble_product(A_forms, b_forms)
-    if bc is not None:
-        A, b = bc.apply(A, b)
-    return A, b
-
-      
+    
 class ProductFunctionSpace:
     def __init__(self, V):
         # V is fenics.FunctionSpace
         self.V = V
         self.V_mesh = V.mesh()
-#         self.V_mesh = V.ufl_domain()
         self.dofmap = ProductDofMap(V)
         self.mass = self._compute_mass()
         
@@ -113,8 +168,7 @@ class ProductFunctionSpace:
     def tabulate_dof_coordinates(self):
         # marginal_dofs <-dof_coords-> marginal_coords
         # product_dofs <--> marginal_coords 
-        # ^^factors through the previous 2 bijections
-        return self.dofmap._dofs_to_coords
+        return list(self.dofmap._product_dofs_to_coords.values())
     
     def _compute_mass(self):
         v = TestFunction(self.V)
@@ -136,57 +190,6 @@ class ProductFunctionSpace:
         return self.V.dim()**2
 
 
-class ProductDirichletBC:
-    def __init__(self, W, u_bdy, on_product_boundary='default'):
-        # on_product_boundary: (x,y) -> True if (x,y) on product boundary, else False
-        # u_bdy is a map (x,y) -> u(x,y) given that on_bound(x,y)==True
-        # W is ProductFunctionSpace, can use .dofmap to help with on_bound
-        if on_product_boundary in ['on_boundary', 'default']:
-            on_product_boundary = default_product_boundary
-        if isinstance(u_bdy, (int, float)):
-            u_bv = float(u_bdy)
-            u_bdy = lambda x,y: u_bv
-            
-        self.product_function_space = W
-        self.marginal_function_space = W.marginal_function_space()
-        self.boundary_values = u_bdy
-        self.on_boundary = on_product_boundary
-            
-    def get_marginal_boundary_dofs(self):
-        bc = DirichletBC(self.marginal_function_space, 0, 'on_boundary')
-        return bc.get_boundary_values().keys()
-
-    def get_product_boundary_dofs(self):
-        # dofs ij where either i or j in marginal bdy dofs
-        marginal_bdy_dofs = self.get_marginal_boundary_dofs()
-        dofs = self.product_function_space.dofmap._dofs_to_product_dofs # ij->(i,j)
-        product_bdy_dofs = []
-        for ij, ij_pair in dofs.items():
-            i, j = ij_pair
-            if i in marginal_bdy_dofs or j in marginal_bdy_dofs:
-                product_bdy_dofs.append(ij)
-        return product_bdy_dofs
-
-    def get_product_boundary_coords(self):
-        prod_bdy_dofs = self.get_product_boundary_dofs()
-        dof_to_coords = self.product_function_space.dofmap._dofs_to_coords # ij->(x_i,y_j)
-        product_bdy_coords = [dof_to_coords[ij] for ij in prod_bdy_dofs]
-        return product_bdy_coords
-            
-    def apply(self, A, b):
-        # applies desired bdy conds to system AU=b
-        # for bdy dof ij, replace A[ij] with e[ij]
-        # replace b[ij] with u_bdy(x_i, y_j)
-        e = np.eye(len(A))
-        prod_bdy_dofs = self.get_product_boundary_dofs() # ij on boundary
-        prod_bdy_coords = self.get_product_boundary_coords() # (x_i, y_j) on boundary
-        bvs = [self.boundary_values(xy[0], xy[1]) for xy in prod_bdy_coords]
-        for k, ij in enumerate(prod_bdy_dofs):
-            A[ij] = e[ij]
-            b[ij] = bvs[k]
-        return A, b
-    
-    
 class ProductDofMap:
     # main usage is to obtain bijections between
     # dofs ij <-> product dofs (i,j) (defined by Kronecker product)
@@ -194,7 +197,7 @@ class ProductDofMap:
     def __init__(self, function_space):
         # marginal dofs and coordinates
         dofmap = function_space.dofmap()
-        dofs = dofmap.dofs()
+        dofs = dofmap.dofs(function_space.mesh(), 0)
         dof_coords = function_space.tabulate_dof_coordinates()
         
         # product space dofs ij and coordinates (x_i, y_j)
@@ -215,7 +218,7 @@ class ProductDofMap:
         self.marginal_dof_coords = dof_coords
 
     
-# TODO: generalize this 
+# TODO: inherit from np ndarray? 
 class ProductFunction:
     def __init__(self, W):
         # initializes product space function 
