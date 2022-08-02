@@ -1,0 +1,42 @@
+# Book settings
+# Learn more at https://jupyterbook.org/customize/config.html
+
+title: PSF manual
+author: Matt Lukac
+copyright: "2022"
+only_build_toc_files: true
+# logo: logo.png
+
+execute:
+  execute_notebooks: cache
+
+repository:
+  url: https://github.com/mattlukac/product-space-fem
+  branch: main
+  path_to_book: docs
+
+html:
+  use_issues_button: false
+  use_repository_button: true
+  use_edit_page_button: false
+  # Do not edit this - the version placeholder is replaced by the
+  # current version during a distribution build in the Makefile
+  extra_navbar: pyslim __PSF_VERSION__
+  extra_footer: pyslim __PSF_VERSION__
+
+sphinx:
+    extra_extensions:
+    - sphinx.ext.autodoc
+    - sphinx.ext.autosummary
+    - sphinx.ext.todo
+    - sphinx.ext.viewcode
+    - sphinx.ext.intersphinx
+
+    config:
+      todo_include_todos: true
+      intersphinx_mapping:
+        python: ["https://docs.python.org/3/", null]
+        ufl: ["https://docs.fenicsproject.org/ufl/2022.1.0/", null]
+      myst_enable_extensions:
+      - colon_fence
+      - deflist

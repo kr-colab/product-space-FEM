@@ -111,10 +111,14 @@ class L2Error:
 
     
 class LossFunctional:
-    """The default loss functional has 3 parts: L2 error + smoothing reg + L2 reg
+    """
+    The default loss functional has 3 parts: ``L2 error + smoothing reg + L2 reg``
+    ```
     Loss(u_d, m) = int (u - u_d)^2 dx + alpha int (grad(m)^2 + m^2) dx
-    So dJdu = int (u - u_d) u_ dx
-    and dJdm = int grad(m) m_ dx + int m * m_ dx"""
+    ```
+    So ``dJdu = int (u - u_d) u_ dx``
+    and ``dJdm = int grad(m) m_ dx + int m * m_ dx``.
+    """
     
     def __init__(self, data, control, reg):
         self.data = data

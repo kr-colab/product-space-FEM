@@ -148,6 +148,10 @@ class ProductFunction:
         result.assign(self.array**other)
         return result
     
+    def __call__(self, x, y):
+        g = self.get_slice(x)
+        return g(y)
+    
     def dim(self):
         return self.W.dim()
     
