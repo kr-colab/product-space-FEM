@@ -18,6 +18,7 @@ class InverseProblem:
         
         # adjoint rhs is dJdu
         b = -self.loss.partial_u(u)
+        
         return self.solver.solve(A, b)
 
 #     def assemble_partials(self, m):
@@ -72,11 +73,17 @@ class InverseProblem:
         return loss, grad
     
     # do scipy optimize
-    def optimize(self, m0, method='L-BFGS-B', *args, **kwargs):
+    def optimize(self, m0, method='Newton-CG', *args, **kwargs):
+        def callback(m):
+            control = self.equation.control
+            control.update(m)
+            print(self.compute_loss(control))
+            
         fun = self.loss_and_grad
         jac = True
-        options = kwargs.get('options')
-        results = opt.minimize(fun, m0.array(), args, method, jac, options)
+        options = kwargs.get('options', {})
+        options['return_all'] = True
+        results = opt.minimize(fun, m0.array(), args, method, jac, callback=callback, options=options)
         m0.update(results['x'])
         return m0, results
         

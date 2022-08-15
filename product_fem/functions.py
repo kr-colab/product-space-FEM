@@ -225,8 +225,9 @@ class ProductBasisFunction(ProductFunction):
 class Control:
     """List of Functions that act as control variables in constraint"""
     
-    def __init__(self, control: list):
-        control = list(control)
+    def __init__(self, control):
+        if not isinstance(control, list):
+            control = [control]
         self._control = control
         self.names = [m.name() for m in control]
         self.function_spaces = [m.function_space() for m in control]

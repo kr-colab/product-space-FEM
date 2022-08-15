@@ -39,7 +39,12 @@ class L2Regularizer(Functional):
         def l2_reg(m, a):
             return a/2 * inner(m, m) * dx
         
-        forms = [l2_reg(m, a) for m, a in zip(control, alpha)]
+        if isinstance(alpha, (int, float)):
+            assert len(control)==1
+            forms = [l2_reg(m, alpha) for m in control]
+        elif isinstance(alpha, (list, tuple)):
+            assert len(control)==len(alpha)
+            forms = [l2_reg(m, a) for m, a in zip(control, alpha)]
         super().__init__(sum(forms))
 
 
@@ -50,7 +55,12 @@ class SmoothingRegularizer(Functional):
         def smooth_reg(m, a):
             return a/2 * inner(grad(m), grad(m)) * dx
         
-        forms = [smooth_reg(m, a) for m, a in zip(control, alpha)]
+        if isinstance(alpha, (int, float)):
+            assert len(control)==1
+            forms = [smooth_reg(m, alpha) for m in control]
+        elif isinstance(alpha, (list, tuple)):
+            assert len(control)==len(alpha)
+            forms = [smooth_reg(m, a) for m, a in zip(control, alpha)]
         super().__init__(sum(forms))
 
 
