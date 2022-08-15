@@ -1,0 +1,7 @@
+format: jb-book
+root: introduction
+parts:
+- caption: Working this package
+  chapters:
+  - file: tutorial
+  - file: api
