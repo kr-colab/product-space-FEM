@@ -7,4 +7,5 @@ from .inverse_problems import InverseProblem
 from .loss_functionals import LossFunctional, ReducedLossFunctional
 from .solvers import Solver
 from .transforms import to_array, to_Function
+from . import equations
 from ._version import psf_version as __version__
