@@ -1,6 +1,0 @@
-fenics
-numpy
-scipy
-jupyter-book
-jupyter-sphinx
-sphinx
