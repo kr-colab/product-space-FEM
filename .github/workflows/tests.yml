@@ -41,3 +41,11 @@ jobs:
           micromamba info
           micromamba list
           pytest -xv -n2 tests
+
+      - name: Build docs
+        shell: bash -l {0}
+        run: |
+          micromamba info
+          micromamba list
+          cd docs
+          PYTHONPATH=".." make
