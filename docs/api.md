@@ -99,10 +99,6 @@ TODO: organize
 ```
 
 ```{eval-rst}
-.. autoclass:: HittingTimes
-```
-
-```{eval-rst}
 .. autoclass:: ProductFunction
 ```
 
