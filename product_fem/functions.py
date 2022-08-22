@@ -273,8 +273,13 @@ class Control:
             self[i].assign(control[i])
             assert self[i].id()==self.ids[i]
             
-    def _update_from_list(self, arrays):
-        assert len(arrays)==len(self)
+    def _update_from_list(self, x):
+        assert len(x) == len(self)
+        arrays = []
+        for xx in x:
+            if isinstance(xx, Function):
+                xx = xx.array()
+            arrays.append(xx)
         array = np.concatenate(tuple(arrays))
         return self._update_from_array(array)
     

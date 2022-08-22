@@ -1,0 +1,51 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: Python
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        python: [3.9]
+        os: [ubuntu-latest]
+
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.6.0
+        with:
+          access_token: ${{ github.token }}
+
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Install Conda
+        uses: mamba-org/provision-with-micromamba@main
+        with:
+          environment-name: anaconda-client-env
+          environment-file: requirements/ci-environment.yml
+          cache-env: true
+          extra-specs: |
+            python=${{ matrix.python }}
+
+      - name: Run tests
+        shell: bash -l {0}
+        run: |
+          micromamba info
+          micromamba list
+          pytest -xv -n2 tests
+
+      - name: Build docs
+        shell: bash -l {0}
+        run: |
+          micromamba info
+          micromamba list
+          cd docs
+          PYTHONPATH=".." make
