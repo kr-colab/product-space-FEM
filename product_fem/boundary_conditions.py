@@ -121,6 +121,15 @@ class ProductDirichletBC:
     
     def petsc_apply(self, A, b):
         """Apply bc when A and b are PETSc Mat and Vec objects"""
+        assert isinstance(A, PETSc.Mat)
+        assert isinstance(b, PETSc.Vec)
+        prod_bdy_dofs = self.get_product_boundary_dofs() 
+        prod_bdy_coords = self.get_product_boundary_coords() 
+        bvs = [self.boundary_values(*xy) for xy in prod_bdy_coords]
+        
+        A.zeroRows(prod_bdy_dofs, diag=1)
+        b.setValues(prod_bdy_dofs, bvs)
+        return A, b
         
     def apply(self, A, b):
         if sps.issparse(A):

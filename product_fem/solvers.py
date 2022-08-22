@@ -19,10 +19,11 @@ class Solver:
         return u
     
     def petsc_solve(self, A, b):
+        # krylov solver for b=Au
         ksp = PETSc.KSP().create()
         ksp.setOperators(A)
         
-        u = A.createVecLeft()
+        u = A.createVecRight()
         ksp.solve(b, u)
         return u
     
@@ -33,33 +34,5 @@ class Solver:
             u = self.sparse_solve(A, b)
         elif isinstance(A, PETSc.Mat):
             u = self.petsc_solve(A, b)[:]
+            
         return to_Function(u, self.W)
-        
-        
-class ForwardSolver:
-    
-    def __init__(self, solver, equation):
-        self.solver = solver
-        self.problem = problem
-        
-    def solve(self):
-        return self.solver.solve(problem)
-    
-    
-class DenseSolver(ForwardSolver):
-    
-    def __init__(self):
-        pass
-    
-    
-class SparseSolver(ForwardSolver):
-    
-    def __init__(self):
-        pass
-    
-    
-class InverseSolver:
-    
-    def __init__(self, solver, inverse_problem):
-        self.solver = forward_solver
-        self.inverse_problem = inverse_problem

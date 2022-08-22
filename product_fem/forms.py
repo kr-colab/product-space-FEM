@@ -53,7 +53,6 @@ class ProductForm:
         assert len(x_forms)==len(y_forms)
         self.x_forms = x_forms
         self.y_forms = y_forms
-#         self.control = control # maybe don't need this
         
     def __len__(self):
         return len(self.x_forms)
@@ -61,15 +60,12 @@ class ProductForm:
     def __getitem__(self, item):
         return self.x_forms[item], self.y_forms[item]
     
-#     def update(self, control):
-#         if self.control is not None:
-#             self.control.update(control)
-#         else:
-#             self.control = control
-        
     def function_space(self):
         form = self.x_forms[0]
         return form.arguments()[0].function_space()
+    
+    def rank(self):
+        return len(self.x_forms[0].arguments())
     
     
 class ProductLinearForm(ProductForm):

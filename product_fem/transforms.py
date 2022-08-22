@@ -1,6 +1,8 @@
 from fenics import project, interpolate, Expression, Function
 import numpy as np
+import scipy.sparse as sps
 import product_fem as pf
+import petsc4py.PETSc as PETSc
 
 
 # DERIVATIVES
@@ -43,6 +45,27 @@ def rescale(xy):
     return xy / np.max(xy)
 
 # CONVERTERS
+# scipy sparse to PETSc
+def sparse_to_PETSc(matrix):
+    # assumes sparse matrix is CSR
+    assert isinstance(matrix, sps.csr_matrix)
+    csr_encoding = matrix.indptr, matrix.indices, matrix.data
+    M = PETSc.Mat().createAIJ(size=matrix.shape, csr=csr_encoding)
+    return M
+
+def PETSc_to_sparse(matrix):
+    M = sps.csr_matrix(matrix.getValuesCSR()[::-1], shape=matrix.size)
+    return M
+
+def PETSc_kron(A, B):
+    # inputs must be PETSc.Mat
+    assert isinstance(A, PETSc.Mat)
+    assert isinstance(B, PETSc.Mat)
+    
+    A, B = PETSc_to_sparse(A), PETSc_to_sparse(B)
+    product_matrix = sps.kron(A, B, 'csr')
+    return sparse_to_PETSc(product_matrix)
+
 # from strings
 def string_to_Function(string, V, proj=True):
     func = pf.Function(V)
