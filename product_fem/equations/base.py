@@ -41,9 +41,7 @@ class Equation:
         return A, b
     
     def solve(self, m=None):
-        if m is None:
-            m = self.control
-        else:
+        if m is not None:
             self.update_control(m)
         A, b = self.assemble_system()
         u = self.solver.solve(A, b)
