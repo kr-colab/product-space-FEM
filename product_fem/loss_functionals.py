@@ -6,16 +6,18 @@ from numpy import array, dot
 class Functional:
     """Functional defined from ufl.Form with Control m"""
     
-    def __init__(self, ufl_form):
+    def __init__(self, control, ufl_form):
+        self.control = control
         assert not ufl_form.arguments()
         self.ufl_form = ufl_form
+        for m in control:
+            assert m in self.ufl_form.coefficients()
         
     def __call__(self, control):
         return self.evaluate(control)
         
     def evaluate(self, control):
-        for m in control:
-            assert m in self.ufl_form.coefficients()
+        self.control.update(control)
         return assemble(self.ufl_form)
     
     def derivative_component(self, i, m):
@@ -24,7 +26,8 @@ class Functional:
     
     def derivative(self, control):
         dJ = []
-        for m in control:
+        self.control.update(control)
+        for m in self.control:
             assert m in self.ufl_form.coefficients()
             for i in range(m.dim()):
                 dm_i = self.derivative_component(i, m)
@@ -45,7 +48,7 @@ class L2Regularizer(Functional):
         elif isinstance(alpha, (list, tuple)):
             assert len(control)==len(alpha)
             forms = [l2_reg(m, a) for m, a in zip(control, alpha)]
-        super().__init__(sum(forms))
+        super().__init__(control, sum(forms))
 
 
 class SmoothingRegularizer(Functional):
@@ -61,7 +64,7 @@ class SmoothingRegularizer(Functional):
         elif isinstance(alpha, (list, tuple)):
             assert len(control)==len(alpha)
             forms = [smooth_reg(m, a) for m, a in zip(control, alpha)]
-        super().__init__(sum(forms))
+        super().__init__(control, sum(forms))
 
 
 class L2Error:

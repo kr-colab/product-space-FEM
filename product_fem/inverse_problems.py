@@ -4,6 +4,10 @@ import numpy as np
 
 
 class InverseProblem:
+    """
+    :param Equation equation:
+    :param LossFunctional loss:
+    """
     
     def __init__(self, equation, loss):
         self.equation = equation
