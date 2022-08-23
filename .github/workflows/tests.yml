@@ -43,7 +43,7 @@ jobs:
           python3 -m pytest -xv -n2 --cov=product_fem --cov-report=xml --cov-branch tests
 
       - name: Upload Coverage to Codecov
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v3
 
       # - name: Build docs
       #   shell: bash -l {0}
