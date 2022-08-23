@@ -40,7 +40,7 @@ jobs:
         run: |
           micromamba info
           micromamba list
-          pytest -xv -n2 tests
+          PYTHONPATH=$PWD pytest -xv -n2 tests
 
       - name: Build docs
         shell: bash -l {0}
