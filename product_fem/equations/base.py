@@ -3,7 +3,9 @@ from product_fem.boundary_conditions import default_boundary_conditions
 from product_fem.function_spaces import ProductFunctionSpace
 from product_fem.solvers import Solver
 from product_fem.forms import derivative, depends_on
+from product_fem.transforms import dense_to_PETSc
 import numpy as np
+import petsc4py.PETSc as PETSc
 from scipy.sparse import csr_matrix
 
 
@@ -53,18 +55,22 @@ class Equation:
         dA_form = derivative(self.lhs, m, m.basis[i])
         db_form = derivative(self.rhs, m, m.basis[i])
         
-        dAdm = self.assembler.product_form_to_PETSc(dA_form)
-        dbdm = self.assembler.assemble_rhs(db_form)
-        
+        dAdm = self.assembler.product_form_to_array(dA_form, out_type='petsc')
         # derivative(form, m) returns 0 when form is independent of m
-        if dbdm==0: 
+        if db_form==0: 
             W = self.bc.product_function_space
             dbdm = np.zeros(W.dim())
-        
+            if isinstance(dAdm, PETSc.Mat):
+                dbdm = dense_to_PETSc(dbdm)
+        else:
+            dbdm = self.assembler.product_form_to_array(db_form, out_type='petsc')
+            
+        # rows with boundary dofs are fixed, so dAdm=0 there
         on_boundary = self.bc.get_product_boundary_dofs()
         dAdm.zeroRows(on_boundary, diag=0)
-        dAdm = csr_matrix(dAdm.getValuesCSR()[::-1], shape=dAdm.size)
-        dbdm[on_boundary] = 0
+        dbdm.setValues(on_boundary, np.zeros(len(on_boundary)))
+#         dAdm = csr_matrix(dAdm.getValuesCSR()[::-1], shape=dAdm.size)
+#         dbdm[on_boundary] = 0
         return dAdm, dbdm
         
     def derivative(self, control):

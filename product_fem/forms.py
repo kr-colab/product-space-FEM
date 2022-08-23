@@ -39,8 +39,12 @@ def derivative(product_form, coefficient, phi):
             y.append(ufl.derivative(y_form, coefficient, phi))
         else:
             pass
-
-    return ProductForm(x, y)
+    
+    # return 0 if no dependence
+    if len(x)==0 and len(y)==0:
+        return 0
+    else:
+        return ProductForm(x, y)
 
 
 class ProductForm:

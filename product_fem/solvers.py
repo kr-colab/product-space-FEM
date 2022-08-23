@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.sparse as sps
 import petsc4py.PETSc as PETSc
-from .transforms import to_Function
+from .transforms import to_Function, dense_to_PETSc
 
 
 class Solver:
@@ -19,7 +19,10 @@ class Solver:
         return u
     
     def petsc_solve(self, A, b):
-        # krylov solver for b=Au
+        if not isinstance(b, PETSc.Vec):
+            b = dense_to_PETSc(b)
+            
+        # krylov solver for Au = b
         ksp = PETSc.KSP().create()
         ksp.setOperators(A)
         
@@ -30,7 +33,7 @@ class Solver:
     def solve(self, A, b):
         if isinstance(A, np.ndarray):
             u = self.dense_solve(A, b)
-        elif sps.issparse(A):
+        elif isinstance(A, sps.csr_matrix):
             u = self.sparse_solve(A, b)
         elif isinstance(A, PETSc.Mat):
             u = self.petsc_solve(A, b)[:]

@@ -1,4 +1,4 @@
-from .transforms import tensordot
+from .transforms import tensordot, dense_to_PETSc
 import scipy.optimize as opt
 import numpy as np
 
@@ -14,24 +14,24 @@ class InverseProblem:
     # solving adjoint requires knowledge of dJdu    
     def solve_adjoint(self, u):
         # adjoint lhs is transpose(lhs from equation)
-        A = self.equation.A.T
+        A = self.equation.A.transpose()
         
         # adjoint rhs is dJdu
         b = -self.loss.partial_u(u)
         
         return self.solver.solve(A, b)
-
-#     def assemble_partials(self, m):
-#         """Here we assemble dJ/dm for loss J"""
-#         dAdm, dbdm = self.equation.partial_m(m)
-#         dJdm = self.loss.partial_m(m)
-#         return dAdm, dbdm, dJdm
         
     def _gradient_component(self, p, i, u, m):
         dAdm, dbdm = self.equation.derivative_component(i, m)
         dJdm = self.loss.derivative_component(i, m)
         
-        dFdm = dbdm - dAdm.dot(u.array)
+        # TODO: perform the next two lines in PETSc
+#         dFdm = dbdm - dAdm.dot(u.array)
+        u = dense_to_PETSc(u.array)
+        dFdm = dbdm - dAdm * u
+        
+        p = dense_to_PETSc(p.array)
+#         gradient = -p.dot(dFdm) + dJdm
         gradient = -p.dot(dFdm) + dJdm
         return gradient
         

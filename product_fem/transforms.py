@@ -46,6 +46,9 @@ def rescale(xy):
 
 # CONVERTERS
 # scipy sparse to PETSc
+def dense_to_PETSc(vector):
+    return PETSc.Vec().createWithArray(vector)
+
 def sparse_to_PETSc(matrix):
     # assumes sparse matrix is CSR
     assert isinstance(matrix, sps.csr_matrix)
@@ -57,14 +60,28 @@ def PETSc_to_sparse(matrix):
     M = sps.csr_matrix(matrix.getValuesCSR()[::-1], shape=matrix.size)
     return M
 
-def PETSc_kron(A, B):
-    # inputs must be PETSc.Mat
+def PETSc_matrix_kron(A, B):
     assert isinstance(A, PETSc.Mat)
     assert isinstance(B, PETSc.Mat)
     
     A, B = PETSc_to_sparse(A), PETSc_to_sparse(B)
     product_matrix = sps.kron(A, B, 'csr')
     return sparse_to_PETSc(product_matrix)
+
+def PETSc_vector_kron(A, B):
+    assert isinstance(A, PETSc.Vec)
+    assert isinstance(B, PETSc.Vec)
+    
+    A, B = A[:], B[:]
+    product_vector = np.kron(A, B)
+    return dense_to_PETSc(product_vector)
+    
+def PETSc_kron(A, B):
+    # inputs must be PETSc.Mat or PETSc.Vec
+    if isinstance(A, PETSc.Mat):
+        return PETSc_matrix_kron(A, B)
+    elif isinstance(A, PETSc.Vec):
+        return PETSc_vector_kron(A, B)
 
 # from strings
 def string_to_Function(string, V, proj=True):

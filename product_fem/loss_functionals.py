@@ -79,20 +79,6 @@ class L2Error:
         error = 1/2 * (u - self.data).array**2
         return W.integrate(error)
     
-#     def derivative_component(self, i, j, u):
-#         W = u.function_space()
-#         phi_i, phi_j = W.basis_i(i), W.basis_i(j)
-#         R = (u - self.data).as_matrix()
-        
-#         result = 0.
-#         for k in range(len(R)):
-#             phi_k = W.basis_i(k)
-#             for ell in range(len(R)):
-#                 phi_ell = W.basis_i(ell)
-#                 result += R[k,ell] * assemble(phi_ell * phi_j * dx) * assemble(phi_k * phi_i * dx)
-        
-#         return result
-    
     def derivative(self, u):
         """"Returns the directional derivative of J wrt u
         in the direction of the ij basis element for u, 
@@ -141,6 +127,7 @@ class LossFunctional:
         dJdm = self.l2_reg.derivative_component(i, m)
         dJdm += self.smoothing_reg.derivative_component(i, m)
         dJdm = assemble(dJdm)
+        assert isinstance(dJdm, float)
         return dJdm
     
     def derivative(self, control):
@@ -168,89 +155,4 @@ class ReducedLossFunctional:
     def derivative(self, control):
         return self.loss.derivative(control)
     
-    
-# TODO: make separate functionals for each term
-# class LossFunctional:
-    
-    
-#     def __init__(self, data=None, reg_params=None):
-#         self.setup_data(data)
-#         self.setup_regularization(reg_params)
-        
-#     # TODO: use SpatialData function as argument
-#     def setup_data(self, data):
-#         self.data = data
-        
-#     def set_regularization(self, params):
-#         self.reg_params = params
-        
-#         self.l2_reg = params['l2']
-#         self.smoothing_reg = params['smoothing']
-        
-# #         self.l2_reg_form = inner(m[i]
-# #         self.smoothing_reg_form = 
-        
-#     def evaluate(self, u, m):
-#         """Evaluate loss at control m"""
-#         l2_err = self.l2_error(u)
-#         l2_reg = self.l2_regularization(m)
-#         sm_reg = self.smoothing_regularization(m)
-#         return l2_err + l2_reg + sm_reg  
-            
-#     def l2_error(self, u):
-#         """Evaluate 1/2 int (u - u_d)^2 dx"""
-#         W = u.function_space() # u is ProductFunction
-#         sq_err = (u.array - self.data.array)**2
-#         return 1/2 * sq_err.dot(W.mass.flatten())
-    
-#     def l2_regularization_form(self, m):
-#         form = inner(m, m) * dx # when m is vector-valued
-#         # if scalar-valued use m * m * dx
-#         return form
-    
-#     def l2_regularization(self, m):
-#         loss = 0.
-#         alphas = self.reg_params['l2']
-#         assert len(alphas)==len(m)
-#         for i in range(len(m)):
-#             loss += alphas[i] / 2 * assemble(inner(m[i], m[i]) * dx)
-#         return loss
-    
-#     def smoothing_regularization_form(self, m):
-#         form = inner(grad(m), grad(m)) * dx # if vector args
-#         # if scalar-valued with scalar args: m.dx(0) * m.dx(0) * dx
-#         return form
-        
-#     def smoothing_regularization(self, m):
-#         loss = 0.
-#         alphas = self.reg_params['smoothing']
-#         assert len(alphas)==len(m)
-#         for i in range(len(m)):
-#             loss += alphas[i] / 2 * assemble(inner(grad(m[i]), grad(m[i])) * dx)
-#         return loss
-    
-#     # derivatives
-#     def assemble_partials(self):
-#         """Assemble dJdm_i = int grad(m) phi_i dx + int m phi_i dx
-#         for the ith basis direction phi_i"""
-#         # l2 term partials
-#         l2_partial = assemble(m * phi_i * dx)
-#         # smoothing term partials
-#         smooth_partial = assemble(grad(m) * phi_i * dx)
-        
-#     def derivative_component(self, i, m):
-#         """Compute the ith component of dJ/dm, where 
-#         J = l2_err + l2_reg + smooth_reg
-#         and m is a Control iteration"""
-#         dJ_form = derivative(self.l2_reg, m, m.basis[i])
-#         dJ_form += derivative(self.smooth_reg, m, m.basis[i])
-        
-#         return 
-    
-#     def partial_u(self, u):
-#         """Assemble dJdu_i = int (u - u_d) * phi_i dx
-#         for the ith basis direction phi_i"""
-#         W = u.function_space()
-#         error = u.array - self.data.array
-#         return -error.dot(W.product_mass())
     

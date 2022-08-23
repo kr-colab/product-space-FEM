@@ -1,7 +1,7 @@
 import pytest
 from numpy import e, exp, log, sin, cos, corrcoef
-from product_fem import ProductFunctionSpace, to_Function
-from product_fem.loss_functionals import L2Error
+from product_fem import ProductFunctionSpace, to_Function, Control
+from product_fem.loss_functionals import L2Error, L2Regularizer, SmoothingRegularizer
 from fenics import UnitIntervalMesh, UnitSquareMesh, FunctionSpace, \
      assemble, dx
 
@@ -64,8 +64,8 @@ class TestFunctionals:
         int d^2 dxdy = ((1 - exp(-2)) / 2)^4,
         int 2ud dxdy = 2
         """
-        n = 25
-        mesh = UnitSquareMesh(n-1, n-1)
+        nx, ny = 25, 20
+        mesh = UnitSquareMesh(nx-1, ny-1)
         V = FunctionSpace(mesh, 'CG', 1)
         W = ProductFunctionSpace(V)
         
@@ -84,4 +84,97 @@ class TestFunctionals:
         assert abs((Eu - Eu_true)/Eu_true) < 5e-3
         
     def test_2d_l2_error_derivative(self):
-        pass
+        n = 15
+        mesh = UnitSquareMesh(n-1, n-1)
+        V = FunctionSpace(mesh, 'CG', 1)
+        W = ProductFunctionSpace(V)
+        h = mesh.hmin()
+        
+        def d_eval(x, y):
+            return exp(-x[0] - x[1] - y[0] - y[1])
+        d = to_Function(d_eval, W)
+        E = L2Error(d)
+        
+        def u_eval(x, y):
+            return exp(x[0] + x[1] + y[0] + y[1])
+        u = to_Function(u_eval, W)
+        
+        def central_diff(i, j):
+            phi_ij = W._basis_ij(i, j)
+            E_right = E(u + h * phi_ij)
+            E_left = E(u - h * phi_ij)
+            
+            return (E_right - E_left) / (2 * h)
+        
+        diffs = [central_diff(i,j) for i,j in W.dofs()]
+        dE = E.derivative(u)
+        
+        assert abs(corrcoef(diffs, dE)[0,1] - 1) < 5e-4
+    
+    def test_1d_l2_reg(self):
+        n = 25
+        mesh = UnitIntervalMesh(n-1)
+        V = FunctionSpace(mesh, 'CG', 1)
+        
+        m = to_Function(lambda x: sin(x), V)
+        m = Control(m)
+        R = L2Regularizer(m, 2.0)
+        
+        Rm = R(m)
+        Rm_true = (2 - sin(2)) / 4
+        
+        assert abs(Rm - Rm_true) < 1e-4
+        
+    def test_2d_l2_reg(self):
+        n = 15
+        mesh = UnitSquareMesh(n-1, n-1)
+        V = FunctionSpace(mesh, 'CG', 1)
+        
+        m = to_Function(lambda x,y: sin(x-y), V)
+        m = Control(m)
+        R = L2Regularizer(m, 2.0)
+        
+        Rm = R(m)
+        Rm_true = cos(1)**2 / 2
+        
+        assert abs(Rm - Rm_true) < 1e-3
+    
+    def test_1d_smoothing_reg(self):
+        n = 25
+        mesh = UnitIntervalMesh(n-1)
+        V = FunctionSpace(mesh, 'CG', 1)
+        
+        m = to_Function(lambda x: sin(x), V)
+        m = Control(m)
+        R = SmoothingRegularizer(m, 2.0)
+        
+        Rm = R(m)
+        Rm_true = (2 + sin(2)) / 4
+        
+        assert abs(Rm - Rm_true) < 1e-4
+    
+    def test_2d_smoothing_reg(self):
+        n = 25
+        mesh = UnitSquareMesh(n-1, n-1)
+        V = FunctionSpace(mesh, 'CG', 1)
+        
+        m = to_Function(lambda x,y: sin(x-y), V)
+        m = Control(m)
+        R = SmoothingRegularizer(m, 2.0)
+        
+        Rm = R(m)
+        Rm_true = 1 + sin(1)**2
+        
+        assert abs(Rm - Rm_true) < 1e-3
+    
+#     def test_1d_l2_reg_derivative(self):
+#         pass
+    
+#     def test_2d_l2_reg_derivative(self):
+#         pass
+    
+#     def test_1d_smoothing_reg_derivative(self):
+#         pass
+    
+#     def test_2d_smoothing_reg_derivative(self):
+#         pass
