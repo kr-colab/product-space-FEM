@@ -45,10 +45,10 @@ jobs:
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v2
 
-      - name: Build docs
-        shell: bash -l {0}
-        run: |
-          micromamba info
-          micromamba list
-          cd docs
-          PYTHONPATH=".." make
+      # - name: Build docs
+      #   shell: bash -l {0}
+      #   run: |
+      #     micromamba info
+      #     micromamba list
+      #     cd docs
+      #     PYTHONPATH=".." make
