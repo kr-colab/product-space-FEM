@@ -15,8 +15,6 @@ class ProductFunctionSpace:
         
     def dofs(self):
         return self.dofmap.product_dofs
-#         n = self.V.dim()
-#         return [(i,j) for i, j in product(range(n), range(n))]
     
     def tabulate_dof_coordinates(self):
         # marginal_dofs <-dof_coords-> marginal_coords

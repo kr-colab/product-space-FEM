@@ -8,80 +8,67 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 FenicsFunction = Function
 
 
-class BaseFunction(FenicsFunction):
+class Function(FenicsFunction):
     """This class will be the base class for product_fem functions.
     To keep things in the family, we return a Function from various
     algebraic operations."""
     
-    def __init__(self, V, *args, **kwargs):
+    def __init__(self, V, dim=1, *args, **kwargs):
+        if V.dolfin_element().value_dimension(0)!=dim:
+            mesh = V.mesh()
+            family = V.ufl_element().family()
+            degree = V.ufl_element().degree()
+            V = VectorFunctionSpace(mesh, family, degree, dim)
+            
         super().__init__(V, *args, **kwargs)
         
+    def __array__(self):
+        return self.vector()[:]
+    
+    def __array_wrap__(self, array):
+        out = self.copy()
+        out.vector()[:] = array.copy()
+        return out
+    
     def __mul__(self, other):
-        if isinstance(other, (int, float)):
-            result = BaseFunction(self.function_space())
-            result.vector()[:] = self.vector()[:] * other
-            return result
-        elif issubclass(type(other), BaseFunction):
-            result = BaseFunction(self.function_space())
-            result.vector()[:] = self.vector()[:] * other.vector()[:]
-            return self
+        out = self.copy()
+        if isinstance(other, (int, float, np.float64)):
+            out.vector()[:] = self.vector()[:] * other
+        elif issubclass(type(other), FenicsFunction):
+            out.vector()[:] = self.vector()[:] * other.vector()[:]
         else:
-            return super().__mul__(other)
+            raise NotImplementedError
+        
+        return out
         
     def __rmul__(self, other):
-        if isinstance(other, (int, float)):
-            result = BaseFunction(self.function_space())
-            result.vector()[:] = self.vector()[:] * other
-            return result
-        elif issubclass(type(other), BaseFunction):
-            result = BaseFunction(self.function_space())
-            result.vector()[:] = self.vector()[:] * other.vector()[:]
-            return self
-        else:
-            return super().__mul__(other)
+        return self.__mul__(other)
     
     def __add__(self, other):
-        assert self.value_dim()==other.value_dimension(0)
-        result = BaseFunction(self.function_space())
-        result.vector()[:] = self.vector()[:] + other.vector()[:]
-        return result
+        out = self.copy()
+        out.vector()[:] = self.vector()[:] + other.vector()[:]
+        return out
     
     def __radd__(self, other):
-        assert self.value_dim()==other.value_dimension(0)
-        result = BaseFunction(self.function_space())
-        result.vector()[:] = self.vector()[:] + other.vector()[:]
-        return result
+        return self__add__(other)
     
     def __sub__(self, other):
-        assert self.value_dim()==other.value_dimension(0)
-        result = BaseFunction(self.function_space())
-        result.vector()[:] = self.vector()[:] - other.vector()[:]
-        return result
+        out = self.copy()
+        out.vector()[:] = self.vector()[:] - other.vector()[:]
+        
+    def __rsub__(self, other):
+        return -self.__sub__(other)
+    
+    def copy(self):
+        V = self.function_space()
+        dim = self.value_dim()
+        return Function(V, dim)
     
     def array(self):
         return to_array(self, self.function_space())
     
     def value_dim(self):
         return self.value_dimension(0)
-    
-    
-class BasisFunction(BaseFunction):
-    
-    def __init__(self, V,  i, *args, **kwargs):
-        super().__init__(V, *args, **kwargs)
-        self.vector()[i] = 1.0
-        
-        
-class Function(BaseFunction):
-    
-    def __init__(self, V, dim=1, *args, **kwargs):
-        if dim > 1:
-            mesh = V.mesh()
-            family = V.ufl_element().family()
-            degree = V.ufl_element().degree()
-            V = VectorFunctionSpace(mesh, family, degree, dim)
-        super().__init__(V, *args, **kwargs)
-        self.basis = self._init_basis()
     
     def plot(self):
         if self.value_dim() < 3:
@@ -97,13 +84,18 @@ class Function(BaseFunction):
     
     def _basis_i(self, i):
         V = self.function_space()
+        dim = V.dolfin_element().value_dimension(0)
         name = f'{self.name()}_{i}'
-        return BasisFunction(V, i, name=name)
+        phi = Function(V, dim, name=name)
+        phi.vector()[i] = 1.
+        return phi
     
-    def _init_basis(self):
+    # TODO: this should not be run more than once
+    @property
+    def basis(self):
         return [self._basis_i(i) for i in range(self.dim())]
-
-    
+        
+        
 class ProductFunction:
 
     def __init__(self, W, **kwargs):
