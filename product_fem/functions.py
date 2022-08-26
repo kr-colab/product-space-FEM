@@ -29,14 +29,16 @@ class Function(FenicsFunction):
         return to_Function(array.copy(), self.function_space())
     
     def __mul__(self, other):
-        out = self.copy()
-        if isinstance(other, (int, float, np.float64)):
-            out.vector()[:] = self.vector()[:] * other
-        elif issubclass(type(other), FenicsFunction):
-            out.vector()[:] = self.vector()[:] * other.vector()[:]
+        if not isinstance(other, (int, float, np.float64, FenicsFunction)):
+            out = super().__mul__(other)
         else:
-            raise NotImplementedError
-        
+            out = self.copy()
+            if isinstance(other, (int, float, np.float64)):
+                out.vector()[:] = self.vector()[:] * other
+            elif issubclass(type(other), FenicsFunction):
+                out.vector()[:] = self.vector()[:] * other.vector()[:]
+            else:
+                raise NotImplementedError(f"Multiplication with {type(other)} not supported.")
         return out
         
     def __rmul__(self, other):
