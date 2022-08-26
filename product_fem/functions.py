@@ -48,11 +48,12 @@ class Function(FenicsFunction):
         return out
     
     def __radd__(self, other):
-        return self__add__(other)
+        return self.__add__(other)
     
     def __sub__(self, other):
         out = self.copy()
         out.vector()[:] = self.vector()[:] - other.vector()[:]
+        return out
         
     def __rsub__(self, other):
         return -self.__sub__(other)
@@ -66,7 +67,7 @@ class Function(FenicsFunction):
     
     def value_dim(self):
         return self.value_dimension(0)
-    
+
     def plot(self):
         if self.value_dim() < 3:
             return plot(self)
@@ -75,10 +76,7 @@ class Function(FenicsFunction):
             
     def dim(self):
         return self.function_space().dim()
-    
-    def value_dim(self):
-        return self.value_dimension(0)
-    
+
     def _basis_i(self, i):
         V = self.function_space()
         dim = V.dolfin_element().value_dimension(0)
