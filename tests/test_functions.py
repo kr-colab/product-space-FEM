@@ -8,10 +8,10 @@ def example_funs(include_fenics=True):
     V = fx.FunctionSpace(mesh, "CG", 1)
     yield pf.to_Function("1.0", V)
     yield pf.to_Function(lambda x, y: x + y, V)
-    # some d=2
-    yield pf.to_Function(lambda x, y: [x ** 2, x + y], V)
-    x = np.linspace(0, 10, V.dim() * 2).reshape((V.dim(), 2))
-    yield pf.to_Function(x, V)
+    # TODO: some d=2
+    # yield pf.to_Function(lambda x, y: [x ** 2, x + y], V)
+    # x = np.linspace(0, 10, V.dim() * 2).reshape((V.dim(), 2))
+    # yield pf.to_Function(x, V)
     if include_fenics:
         f = fx.Function(V)
         yield f
