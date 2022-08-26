@@ -62,7 +62,8 @@ class Function(FenicsFunction):
 
     def copy(self):
         V = self.function_space()
-        return to_Function(self.array().copy(), V)
+        arr = self.array().copy().reshape((-1, self.value_dim()))
+        return to_Function(arr, V)
 
     def array(self):
         return to_array(self, self.function_space())

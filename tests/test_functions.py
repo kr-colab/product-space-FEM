@@ -8,6 +8,10 @@ def example_funs(include_fenics=True):
     V = fx.FunctionSpace(mesh, "CG", 1)
     yield pf.to_Function("1.0", V)
     yield pf.to_Function(lambda x, y: x + y, V)
+    # some d=2
+    yield pf.to_Function(lambda x, y: [x ** 2, x + y], V)
+    x = np.linspace(0, 10, V.dim() * 2).reshape((V.dim(), 2))
+    yield pf.to_Function(x, V)
     if include_fenics:
         f = fx.Function(V)
         yield f
@@ -18,9 +22,27 @@ def example_pairs():
     for f in example_funs():
         for g in example_funs():
             if isinstance(f, pf.Function) or isinstance(g, pf.Function):
-                yield (f, g)
+                fdim = f.function_space().dim()
+                gdim = g.function_space().dim()
+                if fdim == gdim:
+                    yield (f, g)
 
-class TestFunctions:
+
+class TestToFunctions:
+
+    def test_function_from_callable(self):
+        mesh = fx.UnitSquareMesh(7, 6)
+        V = fx.FunctionSpace(mesh, "CG", 1)
+        # this is linear, so should be exact
+        def ff(x, y):
+            return [x - 0.5, x + y]
+        f = pf.to_Function(ff, V)
+        for x in np.linspace(0, 1, 11):
+            for y in np.linspace(0, 1, 8):
+                assert np.allclose(f(x, y), ff(x, y))
+
+
+class TestFunctionArithmetic:
 
     @pytest.mark.parametrize("fg", example_pairs())
     def test_plus(self, fg):
@@ -56,7 +78,7 @@ class TestFunctions:
         f_copy = f.copy()
         assert f != f_copy
         for x, y in [(0.0, 0.0), (0.1, 0.0), (1/3, 0.5), (1.0, 0.0)]:
-            assert f(x, y) == f_copy(x, y)
+            assert np.all(f(x, y) == f_copy(x, y))
         assert np.all(f.vector()[:] == f_copy.vector()[:])
         # test copy is deep
         fx = f.vector()[0]
