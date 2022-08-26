@@ -26,9 +26,7 @@ class Function(FenicsFunction):
         return self.vector()[:]
     
     def __array_wrap__(self, array):
-        out = self.copy()
-        out.vector()[:] = array.copy()
-        return out
+        return to_Function(array.copy(), self.function_space())
     
     def __mul__(self, other):
         out = self.copy()
@@ -61,8 +59,7 @@ class Function(FenicsFunction):
     
     def copy(self):
         V = self.function_space()
-        dim = self.value_dim()
-        return Function(V, dim)
+        return to_Function(self.array().copy(), V)
     
     def array(self):
         return to_array(self, self.function_space())
