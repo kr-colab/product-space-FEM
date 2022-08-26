@@ -126,7 +126,9 @@ def Function_to_Function(func):
 
 # from numpy arrays
 def array_to_Function(array, V):
-    dim = V.dolfin_element().value_dimension(0)
+    dim = 1
+    if len(array.shape) == 2:
+        dim = array.shape[1]
     f = pf.Function(V, dim=dim)
     f.vector()[:] = array.copy().flatten()
     return f
