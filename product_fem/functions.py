@@ -20,6 +20,7 @@ class Function(FenicsFunction):
             degree = V.ufl_element().degree()
             V = VectorFunctionSpace(mesh, family, degree, dim)
             
+        self._basis = None
         super().__init__(V, *args, **kwargs)
         
     def __array__(self):
@@ -87,10 +88,11 @@ class Function(FenicsFunction):
         phi.vector()[i] = 1.
         return phi
     
-    # TODO: this should not be run more than once
     @property
     def basis(self):
-        return [self._basis_i(i) for i in range(self.dim())]
+        if self._basis is None:
+            self._basis = [self._basis_i(i) for i in range(self.dim())]
+        return self._basis
         
         
 class ProductFunction:
