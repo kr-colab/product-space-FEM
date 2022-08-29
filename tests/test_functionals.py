@@ -3,7 +3,7 @@ from numpy import e, exp, log, sin, cos, corrcoef
 from product_fem import ProductFunctionSpace, to_Function, Control
 from product_fem.loss_functionals import L2Error, L2Regularizer, SmoothingRegularizer
 from fenics import UnitIntervalMesh, UnitSquareMesh, FunctionSpace, \
-     assemble, dx
+     assemble, dx, Function
 
 
 class TestFunctionals:

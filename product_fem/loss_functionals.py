@@ -1,4 +1,4 @@
-from fenics import assemble, inner, dx, grad
+from fenics import assemble, inner, dx, grad, Function
 from ufl import derivative
 from numpy import array, dot
 
@@ -20,18 +20,32 @@ class Functional:
         self.control.update(control)
         return assemble(self.ufl_form)
     
-    def derivative_component(self, i, m):
+    def local_derivative_component(self, i, m):
         assert m in self.ufl_form.coefficients()
-        return derivative(self.ufl_form, m, m.basis[i])
+        return derivative(self.ufl_form, m, self.control.basis[i])
     
+    def global_derivative_component(self, i, control):
+        c, l = control._global_to_local_index(i)
+        return self.local_derivative_component(l, control[c])
+    
+    def derivative_component(self, idx, func):
+        if isinstance(func, Function):
+            return self.local_derivative_component(idx, func)
+        elif isinstance(func, Control):
+            return self.global_derivative_component(idx, func)
+        
     def derivative(self, control):
         dJ = []
         self.control.update(control)
-        for m in self.control:
-            assert m in self.ufl_form.coefficients()
-            for i in range(m.dim()):
-                dm_i = self.derivative_component(i, m)
-                dJ.append(dm_i)
+        
+        for i in range(control.dim()):
+            dm_i = self.derivative_component(i, control)
+            dJ.append(dm_i)
+#         for m in self.control:
+#             assert m in self.ufl_form.coefficients()
+#             for i in range(m.dim()):
+#                 dm_i = self.derivative_component(i, m)
+#                 dJ.append(dm_i)
         return dJ
     
     
