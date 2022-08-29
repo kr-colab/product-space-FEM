@@ -8,91 +8,91 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 FenicsFunction = Function
 
 
-class Function(FenicsFunction):
-    """This class will be the base class for product_fem functions.
-    To keep things in the family, we return a Function from various
-    algebraic operations."""
+# class Function(FenicsFunction):
+#     """This class will be the base class for product_fem functions.
+#     To keep things in the family, we return a Function from various
+#     algebraic operations."""
 
-    def __init__(self, V, dim=1, *args, **kwargs):
-        if V.dolfin_element().value_dimension(0)!=dim:
-            mesh = V.mesh()
-            family = V.ufl_element().family()
-            degree = V.ufl_element().degree()
-            V = VectorFunctionSpace(mesh, family, degree, dim)
+#     def __init__(self, V, dim=1, *args, **kwargs):
+#         if V.dolfin_element().value_dimension(0)!=dim:
+#             mesh = V.mesh()
+#             family = V.ufl_element().family()
+#             degree = V.ufl_element().degree()
+#             V = VectorFunctionSpace(mesh, family, degree, dim)
 
-        self._basis = None
-        super().__init__(V, *args, **kwargs)
+#         self._basis = None
+#         super().__init__(V, *args, **kwargs)
 
-    def __array__(self):
-        return self.vector()[:]
+#     def __array__(self):
+#         return self.vector()[:]
 
-    def __array_wrap__(self, array):
-        return to_Function(array.copy(), self.function_space())
+#     def __array_wrap__(self, array):
+#         return to_Function(array.copy(), self.function_space())
 
-    def __mul__(self, other):
-        try:
-            if isinstance(other, (int, float, np.float64)):
-                other_vector = other
-            else:
-                other_vector = other.vector()[:]
-            out = self.copy()
-            out.vector()[:] *= other_vector
-        except AttributeError:
-            out = super().__mul__(other)
-        return out
+#     def __mul__(self, other):
+#         try:
+#             if isinstance(other, (int, float, np.float64)):
+#                 other_vector = other
+#             else:
+#                 other_vector = other.vector()[:]
+#             out = self.copy()
+#             out.vector()[:] *= other_vector
+#         except AttributeError:
+#             out = super().__mul__(other)
+#         return out
 
-    def __rmul__(self, other):
-        return self.__mul__(other)
+#     def __rmul__(self, other):
+#         return self.__mul__(other)
 
-    def __add__(self, other):
-        out = self.copy()
-        out.vector()[:] += other.vector()[:]
-        return out
+#     def __add__(self, other):
+#         out = self.copy()
+#         out.vector()[:] += other.vector()[:]
+#         return out
 
-    def __radd__(self, other):
-        return self.__add__(other)
+#     def __radd__(self, other):
+#         return self.__add__(other)
 
-    def __sub__(self, other):
-        out = self.copy()
-        out.vector()[:] -= other.vector()[:]
-        return out
+#     def __sub__(self, other):
+#         out = self.copy()
+#         out.vector()[:] -= other.vector()[:]
+#         return out
 
-    def __rsub__(self, other):
-        return -self.__sub__(other)
+#     def __rsub__(self, other):
+#         return -self.__sub__(other)
 
-    def copy(self):
-        V = self.function_space()
-        arr = self.array().copy().reshape((-1, self.value_dim()))
-        return to_Function(arr, V)
+#     def copy(self):
+#         V = self.function_space()
+#         arr = self.array().copy().reshape((-1, self.value_dim()))
+#         return to_Function(arr, V)
 
-    def array(self):
-        return to_array(self, self.function_space())
+#     def array(self):
+#         return to_array(self, self.function_space())
 
-    def value_dim(self):
-        return self.value_dimension(0)
+#     def value_dim(self):
+#         return self.value_dimension(0)
 
-    def plot(self):
-        if self.value_dim() < 3:
-            return plot(self)
-        else:
-            raise NotImplementedError
+#     def plot(self):
+#         if self.value_dim() < 3:
+#             return plot(self)
+#         else:
+#             raise NotImplementedError
 
-    def dim(self):
-        return self.function_space().dim()
+#     def dim(self):
+#         return self.function_space().dim()
 
-    def _basis_i(self, i):
-        V = self.function_space()
-        dim = V.dolfin_element().value_dimension(0)
-        name = f'{self.name()}_{i}'
-        phi = Function(V, dim, name=name)
-        phi.vector()[i] = 1.
-        return phi
+#     def _basis_i(self, i):
+#         V = self.function_space()
+#         dim = V.dolfin_element().value_dimension(0)
+#         name = f'{self.name()}_{i}'
+#         phi = Function(V, dim, name=name)
+#         phi.vector()[i] = 1.
+#         return phi
 
-    @property
-    def basis(self):
-        if self._basis is None:
-            self._basis = [self._basis_i(i) for i in range(self.dim())]
-        return self._basis
+#     @property
+#     def basis(self):
+#         if self._basis is None:
+#             self._basis = [self._basis_i(i) for i in range(self.dim())]
+#         return self._basis
 
 
 class ProductFunction:
@@ -228,6 +228,7 @@ class Control:
         self.function_spaces = [m.function_space() for m in control]
         self.dims = [V.dim() for V in self.function_spaces]
         self.ids = [m.id() for m in control]
+        self._basis = None
 
     def __mul__(self, other):
         result = [c * other for c in self._control]
@@ -274,6 +275,33 @@ class Control:
         array = np.concatenate(tuple(arrays))
         return self._update_from_array(array)
 
+    def _global_to_local_index(self, global_idx):
+        """Maps the control index < control_dim to the local index for a control Function"""
+        assert global_idx < self.dim()
+        
+        dim_sums = [0] + np.cumsum(self.dims).tolist()
+        for i in range(1, len(dim_sums)):
+            if global_idx < dim_sums[i]:
+                control_idx = i - 1
+                local_idx = global_idx - dim_sums[control_idx]
+                break
+        return control_idx, local_idx
+    
+    def _get_basis(self):
+        basis = []
+        for i in range(self.dim()):
+            ctrl_i, loc_i = self._global_to_local_index(i)
+            b = Function(self.function_spaces[ctrl_i], name=f'basis_fn_{i}')
+            b.vector()[loc_i] = 1.
+            basis.append(b)
+        return basis
+    
+    @property
+    def basis(self):
+        if self._basis is None:
+            self._basis = self._get_basis()
+        return self._basis
+            
     def dim(self):
         return sum(self.dims)
 
