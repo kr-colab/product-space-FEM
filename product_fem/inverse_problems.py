@@ -26,7 +26,7 @@ class InverseProblem:
         return self.solver.solve(A, b)
         
     def _gradient_component(self, p, i, u, m):
-        dAdm, dbdm = self.equation.derivative_component(i)
+        dAdm, dbdm = self.equation.derivative_component(i, m)
         dJdm = self.loss.derivative_component(i, m)
         
         # TODO: perform the next two lines in PETSc
@@ -43,14 +43,10 @@ class InverseProblem:
         u = self.equation.solve(control)
         p = self.solve_adjoint(u)
         gradient = []
-        for i in range(control.dim()):
-            idx, _ = control._global_to_local_index(i)
-            m = control[idx]
-            gradient.append(self._gradient_component(p, i, u, m))
-#         for m in control:
-#             for i in range(m.function_space().dim()):
-#                 grad_i = self._gradient_component(p, i, u, m)
-#                 gradient.append(grad_i)
+        for m in control:
+            for i in range(m.function_space().dim()):
+                grad_i = self._gradient_component(p, i, u, m)
+                gradient.append(grad_i)
         return np.array(gradient)
         
     def _compute_gradient(self, control):

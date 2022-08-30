@@ -1,98 +1,111 @@
-from .transforms import to_array, to_Function
+from .transforms import to_array, to_Function, function_space_basis
 from fenics import Function, FunctionSpace, VectorFunctionSpace, plot
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
-FenicsFunction = Function
+class Control:
+    """List of Functions that act as control variables in constraint"""
 
+    def __init__(self, control):
+        if not isinstance(control, list):
+            control = [control]
+        self.functions = control
+        self.function_spaces = [m.function_space() for m in control]
+        self.dims = [V.dim() for V in self.function_spaces]
+        self.names = [m.name() for m in control]
+        self.ids = [m.id() for m in control]
+        self._bases = None
 
-# class Function(FenicsFunction):
-#     """This class will be the base class for product_fem functions.
-#     To keep things in the family, we return a Function from various
-#     algebraic operations."""
+    def __mul__(self, other):
+        result = [c * other for c in self.functions]
+        return Control(result)
 
-#     def __init__(self, V, dim=1, *args, **kwargs):
-#         if V.dolfin_element().value_dimension(0)!=dim:
-#             mesh = V.mesh()
-#             family = V.ufl_element().family()
-#             degree = V.ufl_element().degree()
-#             V = VectorFunctionSpace(mesh, family, degree, dim)
+    def __rmul__(self, other):
+        result = [other * c for c in self.functions]
+        return Control(result)
 
-#         self._basis = None
-#         super().__init__(V, *args, **kwargs)
+    def __add__(self, other):
+        result = [self[i] + other[i] for i in range(len(self))]
+        return Control(result)
 
-#     def __array__(self):
-#         return self.vector()[:]
+    def __len__(self):
+        return len(self.function_spaces)
 
-#     def __array_wrap__(self, array):
-#         return to_Function(array.copy(), self.function_space())
+    def __getitem__(self, item):
+        return self.functions[item]
 
-#     def __mul__(self, other):
-#         try:
-#             if isinstance(other, (int, float, np.float64)):
-#                 other_vector = other
-#             else:
-#                 other_vector = other.vector()[:]
-#             out = self.copy()
-#             out.vector()[:] *= other_vector
-#         except AttributeError:
-#             out = super().__mul__(other)
-#         return out
+    def _get_ids(self):
+        return [m.id() for m in self]
 
-#     def __rmul__(self, other):
-#         return self.__mul__(other)
+    def _update_from_array(self, array):
+        assert len(array)==self.dim()
+        arrays = np.split(array, np.cumsum(self.dims))[:-1]
+        assert len(arrays)==len(self)
+        for i in range(len(self)):
+            self[i].vector()[:] = arrays[i].copy()
+            assert self[i].id()==self.ids[i]
 
-#     def __add__(self, other):
-#         out = self.copy()
-#         out.vector()[:] += other.vector()[:]
-#         return out
+    def _update_from_control(self, control):
+        assert len(control)==len(self)
+        for i in range(len(self)):
+            self[i].assign(control[i])
+            assert self[i].id()==self.ids[i]
 
-#     def __radd__(self, other):
-#         return self.__add__(other)
+    def _update_from_list(self, x):
+        assert len(x) == len(self)
+        arrays = []
+        for xx in x:
+            if isinstance(xx, Function):
+                xx = xx.array()
+            arrays.append(xx)
+        array = np.concatenate(tuple(arrays))
+        return self._update_from_array(array)
+    
+    def get_basis(self, m):
+        m_in_control = [func is m for func in self]
+        assert sum(m_in_control)==1
+        return self.bases[np.argmax(m_in_control)]
+    
+    def _get_bases(self):
+        bases = []
+        for V in self.function_spaces:
+            bases.append(function_space_basis(V))
+        return bases
+    
+    @property
+    def bases(self):
+        if self._bases is None:
+            self._bases = self._get_bases()
+        return self._bases
+            
+    def dim(self):
+        return sum(self.dims)
 
-#     def __sub__(self, other):
-#         out = self.copy()
-#         out.vector()[:] -= other.vector()[:]
-#         return out
+    def update(self, m_new):
+        if isinstance(m_new, np.ndarray):
+            self._update_from_array(m_new)
+        elif isinstance(m_new, Control):
+            self._update_from_control(m_new)
+        elif isinstance(m_new, list):
+            self._update_from_list(m_new)
 
-#     def __rsub__(self, other):
-#         return -self.__sub__(other)
+    def split(self):
+        return self.control
 
-#     def copy(self):
-#         V = self.function_space()
-#         arr = self.array().copy().reshape((-1, self.value_dim()))
-#         return to_Function(arr, V)
+    def split_arrays(self):
+        return [to_array(m, m.function_space()) for m in self]
 
-#     def array(self):
-#         return to_array(self, self.function_space())
+    def array(self):
+        return np.concatenate(tuple(self.split_arrays()))
 
-#     def value_dim(self):
-#         return self.value_dimension(0)
-
-#     def plot(self):
-#         if self.value_dim() < 3:
-#             return plot(self)
-#         else:
-#             raise NotImplementedError
-
-#     def dim(self):
-#         return self.function_space().dim()
-
-#     def _basis_i(self, i):
-#         V = self.function_space()
-#         dim = V.dolfin_element().value_dimension(0)
-#         name = f'{self.name()}_{i}'
-#         phi = Function(V, dim, name=name)
-#         phi.vector()[i] = 1.
-#         return phi
-
-#     @property
-#     def basis(self):
-#         if self._basis is None:
-#             self._basis = [self._basis_i(i) for i in range(self.dim())]
-#         return self._basis
+    # untested
+    def plot(self):
+        fig, ax = plt.subplots(len(self))
+        for i, m in enumerate(self):
+            ax[i] = m.plot()
+        plt.show()
 
 
 class ProductFunction:
@@ -216,118 +229,6 @@ class ProductBasisFunction(ProductFunction):
         phi_i, phi_j = self.phi_ij
         return phi_i(x) * phi_j(y)
 
-
-class Control:
-    """List of Functions that act as control variables in constraint"""
-
-    def __init__(self, control):
-        if not isinstance(control, list):
-            control = [control]
-        self._control = control
-        self.names = [m.name() for m in control]
-        self.function_spaces = [m.function_space() for m in control]
-        self.dims = [V.dim() for V in self.function_spaces]
-        self.ids = [m.id() for m in control]
-        self._basis = None
-
-    def __mul__(self, other):
-        result = [c * other for c in self._control]
-        return Control(result)
-
-    def __rmul__(self, other):
-        result = [other * c for c in self._control]
-        return Control(result)
-
-    def __add__(self, other):
-        result = [self[i] + other[i] for i in range(len(self))]
-        return Control(result)
-
-    def __len__(self):
-        return len(self.names)
-
-    def __getitem__(self, item):
-        return self._control[item]
-
-    def _get_ids(self):
-        return [m.id() for m in self]
-
-    def _update_from_array(self, array):
-        assert len(array)==self.dim()
-        arrays = np.split(array, np.cumsum(self.dims))[:-1]
-        assert len(arrays)==len(self)
-        for i in range(len(self)):
-            self[i].vector()[:] = arrays[i].copy()
-            assert self[i].id()==self.ids[i]
-
-    def _update_from_control(self, control):
-        assert len(control)==len(self)
-        for i in range(len(self)):
-            self[i].assign(control[i])
-            assert self[i].id()==self.ids[i]
-
-    def _update_from_list(self, x):
-        assert len(x) == len(self)
-        arrays = []
-        for xx in x:
-            if isinstance(xx, Function):
-                xx = xx.array()
-            arrays.append(xx)
-        array = np.concatenate(tuple(arrays))
-        return self._update_from_array(array)
-
-    def _global_to_local_index(self, global_idx):
-        """Maps the control index < control_dim to the local index for a control Function"""
-        assert global_idx < self.dim()
-        
-        dim_sums = [0] + np.cumsum(self.dims).tolist()
-        for i in range(1, len(dim_sums)):
-            if global_idx < dim_sums[i]:
-                control_idx = i - 1
-                local_idx = global_idx - dim_sums[control_idx]
-                break
-        return control_idx, local_idx
-    
-    def _get_basis(self):
-        basis = []
-        for i in range(self.dim()):
-            ctrl_i, loc_i = self._global_to_local_index(i)
-            b = Function(self.function_spaces[ctrl_i], name=f'basis_fn_{i}')
-            b.vector()[loc_i] = 1.
-            basis.append(b)
-        return basis
-    
-    @property
-    def basis(self):
-        if self._basis is None:
-            self._basis = self._get_basis()
-        return self._basis
-            
-    def dim(self):
-        return sum(self.dims)
-
-    def update(self, m_new):
-        if isinstance(m_new, np.ndarray):
-            self._update_from_array(m_new)
-        elif isinstance(m_new, Control):
-            self._update_from_control(m_new)
-        elif isinstance(m_new, list):
-            self._update_from_list(m_new)
-
-    def split(self):
-        return self.control
-
-    def split_arrays(self):
-        return [to_array(m, m.function_space()) for m in self]
-
-    def array(self):
-        return np.concatenate(tuple(self.split_arrays()))
-
-    # untested
-    def plot(self):
-        fig, ax = plt.subplots(len(self))
-        for i, m in enumerate(self):
-            ax[i] = m.plot()
-        plt.show()
 
 
 class SpatialData:

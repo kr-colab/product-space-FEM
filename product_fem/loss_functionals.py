@@ -20,32 +20,19 @@ class Functional:
         self.control.update(control)
         return assemble(self.ufl_form)
     
-    def local_derivative_component(self, i, m):
+    def derivative_component(self, i, m):
         assert m in self.ufl_form.coefficients()
-        return derivative(self.ufl_form, m, self.control.basis[i])
+        basis_fn_i = self.control.get_basis(m)[i]
+        return derivative(self.ufl_form, m, basis_fn_i)
     
-    def global_derivative_component(self, i, control):
-        c, l = control._global_to_local_index(i)
-        return self.local_derivative_component(l, control[c])
-    
-    def derivative_component(self, idx, func):
-        if isinstance(func, Function):
-            return self.local_derivative_component(idx, func)
-        elif isinstance(func, Control):
-            return self.global_derivative_component(idx, func)
-        
     def derivative(self, control):
         dJ = []
         self.control.update(control)
-        
-        for i in range(control.dim()):
-            dm_i = self.derivative_component(i, control)
-            dJ.append(dm_i)
-#         for m in self.control:
-#             assert m in self.ufl_form.coefficients()
-#             for i in range(m.dim()):
-#                 dm_i = self.derivative_component(i, m)
-#                 dJ.append(dm_i)
+        for m in self.control:
+            assert m in self.ufl_form.coefficients()
+            for i in range(m.function_space().dim()):
+                dm_i = self.derivative_component(i, m)
+                dJ.append(dm_i)
         return dJ
     
     

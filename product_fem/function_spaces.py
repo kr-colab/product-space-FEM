@@ -13,6 +13,9 @@ class ProductFunctionSpace:
         self.dofmap = ProductDofMap(V)
         self.mass = self._compute_mass()
         
+    def dolfin_element(self):
+        return self.V.dolfin_element()
+    
     def dofs(self):
         return self.dofmap.product_dofs
     

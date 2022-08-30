@@ -5,18 +5,10 @@ from .boundary_conditions import default_boundary_conditions
 from .function_spaces import ProductFunctionSpace
 from .solvers import Solver
 from .forms import derivative, depends_on
-from .transforms import dense_to_PETSc
+from .transforms import dense_to_PETSc, vectorized_fn
 import numpy as np
 import petsc4py.PETSc as PETSc
 from scipy.sparse import csr_matrix
-
-
-def vectorized_fn(V, dim, name):
-    mesh = V.mesh()
-    family = V.ufl_element().family()
-    degree = V.ufl_element().degree()
-    VV = VectorFunctionSpace(mesh, family, degree, dim)
-    return Function(VV, name=name)
         
 
 class Equation:
@@ -57,12 +49,10 @@ class Equation:
         u = self.solver.solve(A, b)
         return u
         
-    def derivative_component(self, i):
+    def derivative_component(self, i, m):
         """Compute the ith component of dF/dm, where F=Au-b.
         dAdm and dbdm"""
-        c_idx, l_idx = self.control._global_to_local_index(i)
-        m = self.control[c_idx]
-        basis_fn_i = self.control.basis[i]
+        basis_fn_i = self.control.get_basis(m)[i]
         dA_form = derivative(self.lhs, m, basis_fn_i)
         db_form = derivative(self.rhs, m, basis_fn_i)
         
@@ -86,15 +76,12 @@ class Equation:
         
     def derivative(self, control):
         dAdm, dbdm = [], []
-#         for m in control:
-#             for i in range(m.dim()):
-#                 dA_i, db_i = self.derivative_component(i, m)
-#                 dAdm.append(dA_i)
-#                 dbdm.append(db_i)
-        for i in range(control.dim()):
-            dA_i, db_i = self.derivative_component(i)
-            dAdm.append(dA_i)
-            dbdm.append(db_i)
+        
+        for m in control:
+            for i in range(m.function_space().dim()):
+                dA_i, db_i = self.derivative_component(i, m)
+                dAdm.append(dA_i)
+                dbdm.append(db_i)
         # could numpy transform (dA/dm)_ijk = dAdm[k] and (db/dm)_ij = dbdm[j]
         return dAdm, dbdm
         
