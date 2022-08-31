@@ -4,7 +4,7 @@ from product_fem.equations import HittingTimes
 from fenics import UnitIntervalMesh, UnitSquareMesh, FunctionSpace
 import pytest
 
-
+        
 class TestGradient:
 
     def test_1d_gradient(self):

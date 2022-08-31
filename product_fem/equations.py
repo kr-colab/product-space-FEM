@@ -1,15 +1,15 @@
-from product_fem import ProductDirichletBC, ProductForm, Function, Control, to_Function
-from fenics import as_matrix, TrialFunction, TestFunction, dx, Dx, inner, grad, div, exp
+from product_fem import ProductDirichletBC, ProductForm, Control, to_Function
+from fenics import VectorFunctionSpace, as_matrix, Function, TrialFunction, TestFunction, dx, Dx, inner, grad, div, exp
 from .assemblers import Assembler
 from .boundary_conditions import default_boundary_conditions
 from .function_spaces import ProductFunctionSpace
 from .solvers import Solver
 from .forms import derivative, depends_on
-from .transforms import dense_to_PETSc
+from .transforms import dense_to_PETSc, vectorized_fn
 import numpy as np
 import petsc4py.PETSc as PETSc
 from scipy.sparse import csr_matrix
-
+        
 
 class Equation:
     
@@ -52,8 +52,9 @@ class Equation:
     def derivative_component(self, i, m):
         """Compute the ith component of dF/dm, where F=Au-b.
         dAdm and dbdm"""
-        dA_form = derivative(self.lhs, m, m.basis[i])
-        db_form = derivative(self.rhs, m, m.basis[i])
+        basis_fn_i = self.control.get_basis(m)[i]
+        dA_form = derivative(self.lhs, m, basis_fn_i)
+        db_form = derivative(self.rhs, m, basis_fn_i)
         
         dAdm = self.assembler.product_form_to_array(dA_form, out_type='petsc')
         # derivative(form, m) returns 0 when form is independent of m
@@ -75,12 +76,12 @@ class Equation:
         
     def derivative(self, control):
         dAdm, dbdm = [], []
+        
         for m in control:
-            for i in range(m.dim()):
+            for i in range(m.function_space().dim()):
                 dA_i, db_i = self.derivative_component(i, m)
                 dAdm.append(dA_i)
                 dbdm.append(db_i)
-                
         # could numpy transform (dA/dm)_ijk = dAdm[k] and (db/dm)_ij = dbdm[j]
         return dAdm, dbdm
         
@@ -166,8 +167,9 @@ class HittingTimes2D(Equation):
         super().__init__(lhs, rhs, control, bc)
     
     def _init_control(self, W):
-        mu = Function(W.V, dim=2, name='mu')
-        sig = Function(W.V, dim=3, name='sig')
+        # mu and sig have dimensions 2 and 3, resp.
+        mu = vectorized_fn(W.V, dim=2, name='mu')
+        sig = vectorized_fn(W.V, dim=3, name='sig')
         return mu, sig
         
 
@@ -246,7 +248,7 @@ class DriftDiffusion(Equation):
         
     def _init_control(self, W):
         # default control is b=0
-        b = Function(W.V, dim=2, name='b')
+        b = vectorized_fn(W.V, dim=2, name='b')
         eps = Function(W.V, name='eps')
         eps.vector()[:] = 0.25
         return b, eps
@@ -283,13 +285,8 @@ class ExpDiffusion(Equation):
         super().__init__(lhs, rhs, bc)
         
     def init_control(self, W):
-        m = to_Function('cos(x[0])', W.V)
-        mx = Function(W.V)
-        mx.assign(m)
-        
-        m = to_Function('sin(x[0])', W.V)
-        my = Function(W.V)
-        my.assign(m)
+        mx = to_Function('cos(x[0])', W.V)
+        my = to_Function('sin(x[0])', W.V)
         
         return mx, my
     

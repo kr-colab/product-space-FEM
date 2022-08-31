@@ -44,7 +44,7 @@ class TestHittingTimes:
 
         # now update control
         mu, sig = m = eqn.control
-        mu.vector()[:] = np.linspace(0, 1, mu.dim())
+        mu.vector()[:] = np.linspace(0, 1, mu.function_space().dim())
         u_new = eqn.solve(m).array
 
         assert not np.allclose(u, u_new)
@@ -55,7 +55,7 @@ class TestHittingTimes:
 
         # now update control
         mu, sig = m = eqn.control
-        mu.vector()[:] = np.linspace(0, 2, mu.dim())
+        mu.vector()[:] = np.linspace(0, 2, mu.function_space().dim())
         u_new = eqn.solve(m).array
 
         assert not np.allclose(u, u_new)

@@ -1,4 +1,4 @@
-from .transforms import tensordot, dense_to_PETSc
+from .transforms import dense_to_PETSc
 import scipy.optimize as opt
 import numpy as np
 
@@ -44,7 +44,7 @@ class InverseProblem:
         p = self.solve_adjoint(u)
         gradient = []
         for m in control:
-            for i in range(m.dim()):
+            for i in range(m.function_space().dim()):
                 grad_i = self._gradient_component(p, i, u, m)
                 gradient.append(grad_i)
         return np.array(gradient)
@@ -55,7 +55,7 @@ class InverseProblem:
         grad = np.zeros(control.dim())
         
         dAdm, dbdm = self.equation.derivative(control)
-        dFdm = dbdm - tensordot(dAdm, u, axes=(1,0))
+        dFdm = dbdm - np.tensordot(dAdm, u, axes=(1,0))
         dJdm = self.loss.derivative(control)
         grad = -p.dot(dFdm) + dJdm
         return grad

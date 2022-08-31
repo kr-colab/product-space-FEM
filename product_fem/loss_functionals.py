@@ -1,4 +1,4 @@
-from fenics import assemble, inner, dx, grad
+from fenics import assemble, inner, dx, grad, Function
 from ufl import derivative
 from numpy import array, dot
 
@@ -22,14 +22,15 @@ class Functional:
     
     def derivative_component(self, i, m):
         assert m in self.ufl_form.coefficients()
-        return derivative(self.ufl_form, m, m.basis[i])
+        basis_fn_i = self.control.get_basis(m)[i]
+        return derivative(self.ufl_form, m, basis_fn_i)
     
     def derivative(self, control):
         dJ = []
         self.control.update(control)
         for m in self.control:
             assert m in self.ufl_form.coefficients()
-            for i in range(m.dim()):
+            for i in range(m.function_space().dim()):
                 dm_i = self.derivative_component(i, m)
                 dJ.append(dm_i)
         return dJ

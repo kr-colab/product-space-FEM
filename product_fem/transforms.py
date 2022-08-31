@@ -1,18 +1,11 @@
-from fenics import project, interpolate, Expression, Function
+from fenics import project, interpolate, Expression, Function, FunctionSpace, VectorFunctionSpace
 import numpy as np
 import scipy.sparse as sps
 import product_fem as pf
 import petsc4py.PETSc as PETSc
 
 
-# DERIVATIVES
-def derivative(form, control, direction):
-    pass
-
 # SPATIAL TRANSFORMS
-def tensordot(X, Y, **kwargs):
-    return np.tensordot(X, Y, **kwargs)
-
 # translate long/lats to displacement from point p
 def translate(xy, p):
     if p.ndim==1:
@@ -85,13 +78,11 @@ def PETSc_kron(A, B):
 
 # from strings
 def string_to_Function(string, V, proj=True):
-    func = pf.Function(V)
     if proj:
         f = project(Expression(string, element=V.ufl_element()), V)
     else:
         f = interpolate(Expression(string, element=V.ufl_element()), V)
-    func.assign(f)
-    return func
+    return f
 
 def string_to_array(string, V, proj=True):
     func = string_to_Function(string, V, proj)
@@ -100,7 +91,8 @@ def string_to_array(string, V, proj=True):
     
 # from python functions
 def callable_to_array(func, V):
-    dof_coords = V.tabulate_dof_coordinates()
+    dim = V.dolfin_element().value_dimension(0)
+    dof_coords = V.tabulate_dof_coordinates()[::dim]
     return np.array([func(*x) for x in dof_coords])
 
 def callable_to_Function(func, V):
@@ -118,18 +110,9 @@ def Function_to_array(func):
     array = func.vector()[:]
     return array
 
-def Function_to_Function(func):
-    V = func.function_space()
-    f = pf.Function(V)
-    f.assign(func)
-    return f
-
 # from numpy arrays
 def array_to_Function(array, V):
-    dim = 1
-    if len(array.shape) == 2:
-        dim = array.shape[1]
-    f = pf.Function(V, dim=dim)
+    f = Function(V)
     f.vector()[:] = array.copy().flatten()
     return f
 
@@ -151,10 +134,6 @@ def form_to_array(form):
     
 # to product_fem Functions
 def to_Function(func, V):
-    
-    # from dolfin Function
-    if isinstance(func, Function):
-        return Function_to_Function(func)
     
     # from strings
     if isinstance(func, str):
@@ -182,10 +161,24 @@ def to_array(func, V):
         return string_to_array(func, V)
     
     # from dolfin or product_fem Function
-    elif isinstance(func, (pf.Function, Function)):
+    elif isinstance(func, Function):
         return Function_to_array(func)
     
     # from callable
     elif callable(func):
         return callable_to_array(func, V)
     
+def function_space_basis(V):
+    basis = []
+    for i in range(V.dim()):
+        f = Function(V)
+        f.vector()[i] = 1.
+        basis.append(f)
+    return basis
+
+def vectorized_fn(V, dim, name):
+    mesh = V.mesh()
+    family = V.ufl_element().family()
+    degree = V.ufl_element().degree()
+    VV = VectorFunctionSpace(mesh, family, degree, dim)
+    return Function(VV, name=name)
