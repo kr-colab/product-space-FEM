@@ -3,6 +3,35 @@ import scipy.optimize as opt
 import numpy as np
 
 
+def taylor_test(invp):
+    m = invp.equation.control
+    Jm = invp.compute_loss(m)
+    dJ = invp.compute_gradient(m)
+    e = np.eye(m.dim())
+
+    # taylor remainder |J - Jp - h * dJ| = O(h^2)
+    def remainder(h):
+        Jp = []
+        for i in range(m.dim()):
+            if i==0:
+                m.update(m.array() + h * e[i])
+            else:
+                m.update(m.array() - h * e[i-1] + h * e[i])
+
+            Jp.append(invp.compute_loss(m))
+
+        m.update(m.array() - h * e[i])
+        return [abs(Jp[i] - Jm - h * dJ[i]) for i in range(m.dim())]
+
+    c = 10
+    hs = [1. / (c**k) for k in range(1, 4)]
+    rs = [remainder(h) for h in hs]
+
+    # rates should all be close to 2
+    rates = [np.log(np.divide(rs[i-1], rs[i])) / np.log(c) for i in range(1, len(rs))]
+    return rates
+
+
 class InverseProblem:
     """
     :param Equation equation:
@@ -86,7 +115,7 @@ class InverseProblem:
         fun = self.loss_and_grad
         jac = True
         options = kwargs.get('options', {})
-        options['return_all'] = True
+        if method=='Newton-CG': options['return_all'] = True
         results = opt.minimize(fun, m0.array(), args, method, jac, callback=callback, options=options)
         m0.update(results['x'])
         return m0, results

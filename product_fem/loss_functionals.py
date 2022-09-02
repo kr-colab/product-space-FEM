@@ -1,6 +1,7 @@
 from fenics import assemble, inner, dx, grad, Function
 from ufl import derivative
-from numpy import array, dot
+from .transforms import to_Function
+from numpy import array, ndarray, dot, ones
 
 
 class Functional:
@@ -72,15 +73,21 @@ class L2Error:
     """Defined by J(u) = 1/2 int (u - u_d)^2 dxdy 
     given SpatialData u_d"""
     
-    def __init__(self, spatial_data):
-        self.data = spatial_data
+    def __init__(self, data, weights=None):
+        self.data = data
+        if weights is None:
+            weights = ones(len(data))
+        else:
+            assert isinstance(weights, ndarray)
+            assert len(weights)==len(data)
+        self.weights = to_Function(weights, data.function_space())
         
     def __call__(self, u):
         return self.evaluate(u)
         
     def evaluate(self, u):
         W = u.function_space()
-        error = 1/2 * (u - self.data).array**2
+        error = 1/2 * (self.weights * (u - self.data)).array**2
         return W.integrate(error)
     
     def derivative(self, u):
@@ -93,8 +100,9 @@ class L2Error:
         int f phi_i phi_j dxdy = sum_kl f_kl int phi_k phi_i dx phi_l phi_j dy
         this is just f dotted with the product mass 
         M_ik,jl := (int phi_k phi_i dx) (int phi_l phi_j dy)"""
+        
+        r = (self.weights * (u - self.data)).as_matrix()
         pmass = u.function_space().product_mass()
-        r = (u - self.data).as_matrix()
         dJdu = pmass.dot(r.dot(pmass)).flatten()
         assert len(dJdu)==len(u)
         return dJdu
@@ -137,7 +145,7 @@ class LossFunctional:
     def derivative(self, control):
         dJdm = []
         for m in control:
-            for i in range(m.dim()):
+            for i in range(m.function_space().dim()):
                 dJ_i = self.derivative_component(i, m)
                 dJdm.append(dJ_i)
         return dJdm
