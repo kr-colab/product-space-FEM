@@ -129,7 +129,7 @@ class ProductFunction:
             result.assign(self.array * other)
 
         # product function mult
-        elif issubclass(other, ProductFunction):
+        elif isinstance(other, ProductFunction):
             result.assign(self.array * other.array)
 
         return result
