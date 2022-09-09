@@ -3,6 +3,7 @@ import numpy as np
 import scipy.sparse as sps
 import product_fem as pf
 import petsc4py.PETSc as PETSc
+import time
 
 
 # SPATIAL TRANSFORMS
@@ -40,7 +41,8 @@ def rescale(xy):
 # CONVERTERS
 # scipy sparse to PETSc
 def dense_to_PETSc(vector):
-    return PETSc.Vec().createWithArray(vector)
+    petsc_vec = PETSc.Vec().createWithArray(vector)
+    return petsc_vec
 
 def sparse_to_PETSc(matrix):
     # assumes sparse matrix is CSR
@@ -70,11 +72,16 @@ def PETSc_vector_kron(A, B):
     return dense_to_PETSc(product_vector)
     
 def PETSc_kron(A, B):
+#     start = time.time()
     # inputs must be PETSc.Mat or PETSc.Vec
     if isinstance(A, PETSc.Mat):
-        return PETSc_matrix_kron(A, B)
+        kron = PETSc_matrix_kron(A, B)
     elif isinstance(A, PETSc.Vec):
-        return PETSc_vector_kron(A, B)
+        kron = PETSc_vector_kron(A, B)
+    
+#     end = time.time()
+#     print(f'transforms.PETSc_kron() took {end - start} seconds')
+    return kron
 
 # from strings
 def string_to_Function(string, V, proj=True):

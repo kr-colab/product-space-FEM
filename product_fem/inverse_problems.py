@@ -58,7 +58,6 @@ class InverseProblem:
         dAdm, dbdm = self.equation.derivative_component(i, m)
         dJdm = self.loss.derivative_component(i, m)
         
-        # TODO: perform the next two lines in PETSc
 #         dFdm = dbdm - dAdm.dot(u.array)
         u = dense_to_PETSc(u.array)
         dFdm = dbdm - dAdm * u

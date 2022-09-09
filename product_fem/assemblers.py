@@ -3,6 +3,7 @@ import numpy as np
 import scipy.sparse as sps
 import petsc4py.PETSc as PETSc
 from .transforms import PETSc_kron, PETSc_to_sparse
+import time
 
 
 class Assembler:
@@ -40,20 +41,30 @@ class Assembler:
     # rank 1 ufl form to vector
     def to_vector(self, linear_form, out_type='petsc'):
         assert out_type in ['dense', 'sparse', 'petsc']
+#         start = time.time()
         if out_type in ['dense', 'sparse']:
-            return self._to_dense_vector(linear_form)
+            vector = self._to_dense_vector(linear_form)
         elif out_type=='petsc':
-            return self._to_PETSc_vector(linear_form)
-    
+            vector = self._to_PETSc_vector(linear_form)
+        
+#         end = time.time()
+#         print(f'Assembler.to_vector() took {end - start} seconds')
+        return vector
     # rank 2 ufl form to matrix
     def to_matrix(self, bilinear_form, out_type='petsc'):
+#         start = time.time()
+        
         assert out_type in ['dense', 'sparse', 'petsc']
         if out_type=='dense':
-            return self._to_dense_matrix(bilinear_form)
+            matrix = self._to_dense_matrix(bilinear_form)
         elif out_type=='sparse':
-            return self._to_sparse_matrix(bilinear_form)
+            matrix = self._to_sparse_matrix(bilinear_form)
         elif out_type=='petsc':
-            return self._to_PETSc_matrix(bilinear_form)
+            matrix = self._to_PETSc_matrix(bilinear_form)
+        
+#         end = time.time()
+#         print(f'Assembler.to_matrix() took {end - start} seconds')
+        return matrix
     
     def form_to_array(self, form, out_type='petsc'):
         rank = len(form.arguments())
@@ -65,6 +76,8 @@ class Assembler:
             return self.to_matrix(form, out_type)
     
     def product_form_to_array(self, product_form, out_type='petsc'):
+#         start = time.time()
+        
         assert out_type in ['dense', 'sparse', 'petsc']
         
         # which kronecker product to use
@@ -81,14 +94,22 @@ class Assembler:
             x = self.form_to_array(x_form, out_type)
             y = self.form_to_array(y_form, out_type)
             products.append( kron_fns[out_type](x, y) )
+            
+#         array = sum(products)
+#         end = time.time()
+#         print(f'Assembler.product_form_to_array() took {end - start} seconds')
         return sum(products)
     
     ## LINEAR SYSTEM ASSEMBLY
     def assemble_product_system(self, lhs, rhs, bc=None, out_type='petsc'):
+#         start = time.time()
+        
         A = self.product_form_to_array(lhs, out_type)
         b = self.product_form_to_array(rhs, out_type)
         
         if bc:
             A, b = bc.apply(A, b)
+        
+#         end = time.time()
+#         print(f'Assembler.assemble_product_system() took {end - start} seconds')
         return A, b
-    

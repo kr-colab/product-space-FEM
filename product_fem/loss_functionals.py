@@ -1,4 +1,4 @@
-from fenics import assemble, inner, dx, grad, Function
+from fenics import assemble, inner, dx, grad, Function, Constant
 from ufl import derivative
 from .transforms import to_Function
 from numpy import array, ndarray, dot, ones
@@ -13,6 +13,7 @@ class Functional:
         self.ufl_form = ufl_form
         for m in control:
             assert m in self.ufl_form.coefficients()
+        self._derivative_forms = None
         
     def __call__(self, control):
         return self.evaluate(control)
@@ -21,10 +22,28 @@ class Functional:
         self.control.update(control)
         return assemble(self.ufl_form)
     
+    def derivative_forms(self):
+        if self._derivative_forms is None:
+            self._derivative_forms = self._get_derivative_forms()
+        return self._derivative_forms
+    
+    def _get_derivative_forms(self):
+        dJ_forms = []
+        for m in self.control:
+            dJdm = []
+            for basis_func_i in self.control.get_basis(m):
+                dJdm.append(derivative(self.ufl_form, m, basis_func_i))
+                
+            dJ_forms.append(dJdm)
+        return dJ_forms
+    
     def derivative_component(self, i, m):
         assert m in self.ufl_form.coefficients()
-        basis_fn_i = self.control.get_basis(m)[i]
-        return derivative(self.ufl_form, m, basis_fn_i)
+        dJ_forms = self.derivative_forms()
+        j = self.control.argwhere(m)
+        return dJ_forms[j][i]
+#         basis_fn_i = self.control.get_basis(m)[i]
+#         return derivative(self.ufl_form, m, basis_fn_i)
     
     def derivative(self, control):
         dJ = []
@@ -42,7 +61,7 @@ class L2Regularizer(Functional):
     
     def __init__(self, control, alpha):
         def l2_reg(m, a):
-            return a/2 * inner(m, m) * dx
+            return Constant(a/2) * inner(m, m) * dx
         
         if isinstance(alpha, (int, float)):
             assert len(control)==1
@@ -58,7 +77,7 @@ class SmoothingRegularizer(Functional):
     
     def __init__(self, control, alpha):
         def smooth_reg(m, a):
-            return a/2 * inner(grad(m), grad(m)) * dx
+            return Constant(a/2) * inner(grad(m), grad(m)) * dx
         
         if isinstance(alpha, (int, float)):
             assert len(control)==1

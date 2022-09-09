@@ -9,7 +9,8 @@ from .transforms import dense_to_PETSc, vectorized_fn
 import numpy as np
 import petsc4py.PETSc as PETSc
 from scipy.sparse import csr_matrix
-        
+import time
+
 
 class Equation:
     
@@ -29,6 +30,7 @@ class Equation:
             
         self.assembler = Assembler()
         self.solver = Solver(W)
+        self._derivative_forms = None
         
     def function_space(self):
         return self.bc.product_function_space
@@ -47,14 +49,40 @@ class Equation:
             self.update_control(m)
         A, b = self.assemble_system()
         u = self.solver.solve(A, b)
+        
         return u
         
+    def _get_derivative_forms(self):
+        dA_forms = []
+        db_forms = []
+        for m in self.control:
+            m_basis = self.control.get_basis(m)
+            dAdm, dbdm = [], [] # sublists, one for each function in control
+            for basis_func_i in m_basis:
+                dAdm.append(derivative(self.lhs, m, basis_func_i))
+                dbdm.append(derivative(self.rhs, m, basis_func_i))
+                
+            dA_forms.append(dAdm)
+            db_forms.append(dbdm)
+        
+        # these are now lists of len(control) lists with 
+        return dA_forms, db_forms
+        
+    def derivative_forms(self):
+        if self._derivative_forms is None:
+            self._derivative_forms = self._get_derivative_forms()
+        return self._derivative_forms
+    
     def derivative_component(self, i, m):
         """Compute the ith component of dF/dm, where F=Au-b.
         dAdm and dbdm"""
-        basis_fn_i = self.control.get_basis(m)[i]
-        dA_form = derivative(self.lhs, m, basis_fn_i)
-        db_form = derivative(self.rhs, m, basis_fn_i)
+#         basis_fn_i = self.control.get_basis(m)[i]
+#         dA_form = derivative(self.lhs, m, basis_fn_i)
+#         db_form = derivative(self.rhs, m, basis_fn_i)
+        dA_forms, db_forms = self.derivative_forms()
+        j = self.control.argwhere(m)
+        dA_form = dA_forms[j][i]
+        db_form = db_forms[j][i]
         
         dAdm = self.assembler.product_form_to_array(dA_form, out_type='petsc')
         # derivative(form, m) returns 0 when form is independent of m
@@ -76,7 +104,6 @@ class Equation:
         
     def derivative(self, control):
         dAdm, dbdm = [], []
-        
         for m in control:
             for i in range(m.function_space().dim()):
                 dA_i, db_i = self.derivative_component(i, m)
