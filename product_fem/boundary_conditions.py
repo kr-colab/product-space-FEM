@@ -2,6 +2,7 @@ from fenics import DirichletBC, near
 import numpy as np
 import scipy.sparse as sps
 import petsc4py.PETSc as PETSc
+import time
 
 def near2d(x, y, tol=3e-10):
     return np.linalg.norm(x-y) < tol
@@ -68,6 +69,8 @@ class ProductDirichletBC:
         self.marginal_function_space = W.marginal_function_space()
         self.boundary_values = u_bdy
         self.on_boundary = on_product_boundary
+        self._product_boundary_dofs = None
+        self._product_boundary_coords = None
         
     def function_space(self):
         return self.product_function_space
@@ -76,7 +79,7 @@ class ProductDirichletBC:
         bc = DirichletBC(self.marginal_function_space, 0, 'on_boundary')
         return bc.get_boundary_values().keys()
 
-    def get_product_boundary_dofs(self):
+    def _get_product_boundary_dofs(self):
         # dofs ij where either i or j in marginal bdy dofs
         marginal_bdy_dofs = self.get_marginal_boundary_dofs()
         dof_coords = self.product_function_space.tabulate_dof_coordinates()
@@ -86,12 +89,24 @@ class ProductDirichletBC:
                 product_bdy_dofs.append(ij)
         return product_bdy_dofs
 
-    def get_product_boundary_coords(self):
+    def _get_product_boundary_coords(self):
         prod_bdy_dofs = self.get_product_boundary_dofs()
         dof_coords = self.product_function_space.tabulate_dof_coordinates()
         product_bdy_coords = [dof_coords[ij] for ij in prod_bdy_dofs]
         return product_bdy_coords
-            
+    
+    def get_product_boundary_dofs(self):
+        if self._product_boundary_dofs is None:
+            self._product_boundary_dofs = self._get_product_boundary_dofs()
+        
+        return self._product_boundary_dofs
+    
+    def get_product_boundary_coords(self):
+        if self._product_boundary_coords is None:
+            self._product_boundary_coords = self._get_product_boundary_coords()
+        
+        return self._product_boundary_coords
+        
     def dense_apply(self, A, b):
         # applies desired bdy conds to system AU=b
         # for bdy dof ij, replace A[ij] with e[ij]
@@ -123,7 +138,7 @@ class ProductDirichletBC:
         """Apply bc when A and b are PETSc Mat and Vec objects"""
         assert isinstance(A, PETSc.Mat)
         assert isinstance(b, PETSc.Vec)
-        prod_bdy_dofs = self.get_product_boundary_dofs() 
+        prod_bdy_dofs = self.get_product_boundary_dofs()
         prod_bdy_coords = self.get_product_boundary_coords() 
         bvs = [self.boundary_values(*xy) for xy in prod_bdy_coords]
         
@@ -131,23 +146,12 @@ class ProductDirichletBC:
         b.setValues(prod_bdy_dofs, bvs)
         return A, b
         
-    def apply(self, A, b):
+    def apply(self, A, b):        
         if sps.issparse(A):
-            return self.sparse_apply(A, b)
+            result = self.sparse_apply(A, b)
         elif isinstance(A, np.ndarray):
-            return self.dense_apply(A, b)
+            result = self.dense_apply(A, b)
         elif isinstance(A, PETSc.Mat):
-            return self.petsc_apply(A, b)
-    
-    # Untested, but if works can replace dense_apply, sparse_apply, apply
-    # A is dolfin Matrix (i.e. assemble(form)), b is dolfin Vector
-    def _apply(self, A, b):
-        prod_bdy_dofs = self.get_product_boundary_dofs()
-        prod_bdy_coords = self.get_product_boundary_coords()
-        bvs = [self.boundary_values(*xy) for xy in prod_bdy_coords]
+            result = self.petsc_apply(A, b)
         
-        # apply to lhs and rhs
-        A.ident(rows=prod_bdy_dofs)
-        b[prod_bdy_dofs] = bvs
-        
-        return A, b
+        return result

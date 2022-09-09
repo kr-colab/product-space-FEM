@@ -37,5 +37,6 @@ class Solver:
             u = self.sparse_solve(A, b)
         elif isinstance(A, PETSc.Mat):
             u = self.petsc_solve(A, b)[:]
-            
-        return to_Function(u, self.W)
+        
+        solution = to_Function(u, self.W)
+        return solution

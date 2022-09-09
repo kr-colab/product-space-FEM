@@ -58,15 +58,17 @@ class Control:
         arrays = []
         for xx in x:
             if isinstance(xx, Function):
-                xx = xx.array()
+                xx = xx.vector()[:]
             arrays.append(xx)
         array = np.concatenate(tuple(arrays))
         return self._update_from_array(array)
     
+    def argwhere(self, m):
+        for i, mi in enumerate(self):
+            if mi==m: return i
+        
     def get_basis(self, m):
-        m_in_control = [func is m for func in self]
-        assert sum(m_in_control)==1
-        return self.bases[np.argmax(m_in_control)]
+        return self.bases[self.argwhere(m)]
     
     def _get_bases(self):
         bases = []

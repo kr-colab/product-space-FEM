@@ -29,7 +29,6 @@ def proj(xy, v):
         v = np.array(v).reshape(-1, 1)
     if v.ndim==1:
         v = v.reshape(-1, 1)
-#         v = v[:, np.newaxis]
     P = v.dot(v.T) / v.T.dot(v)
     assert len(P.T)==len(xy)
     return P.dot(xy)
@@ -40,7 +39,8 @@ def rescale(xy):
 # CONVERTERS
 # scipy sparse to PETSc
 def dense_to_PETSc(vector):
-    return PETSc.Vec().createWithArray(vector)
+    petsc_vec = PETSc.Vec().createWithArray(vector)
+    return petsc_vec
 
 def sparse_to_PETSc(matrix):
     # assumes sparse matrix is CSR
@@ -72,9 +72,11 @@ def PETSc_vector_kron(A, B):
 def PETSc_kron(A, B):
     # inputs must be PETSc.Mat or PETSc.Vec
     if isinstance(A, PETSc.Mat):
-        return PETSc_matrix_kron(A, B)
+        kron = PETSc_matrix_kron(A, B)
     elif isinstance(A, PETSc.Vec):
-        return PETSc_vector_kron(A, B)
+        kron = PETSc_vector_kron(A, B)
+    
+    return kron
 
 # from strings
 def string_to_Function(string, V, proj=True):
@@ -155,7 +157,6 @@ def to_Function(func, V):
     
 # to numpy arrays
 def to_array(func, V):
-    
     # from strings
     if isinstance(func, str):
         return string_to_array(func, V)

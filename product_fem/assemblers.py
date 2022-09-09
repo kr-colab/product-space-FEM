@@ -41,19 +41,24 @@ class Assembler:
     def to_vector(self, linear_form, out_type='petsc'):
         assert out_type in ['dense', 'sparse', 'petsc']
         if out_type in ['dense', 'sparse']:
-            return self._to_dense_vector(linear_form)
+            vector = self._to_dense_vector(linear_form)
         elif out_type=='petsc':
-            return self._to_PETSc_vector(linear_form)
+            vector = self._to_PETSc_vector(linear_form)
+        
+        return vector
     
     # rank 2 ufl form to matrix
     def to_matrix(self, bilinear_form, out_type='petsc'):
+        
         assert out_type in ['dense', 'sparse', 'petsc']
         if out_type=='dense':
-            return self._to_dense_matrix(bilinear_form)
+            matrix = self._to_dense_matrix(bilinear_form)
         elif out_type=='sparse':
-            return self._to_sparse_matrix(bilinear_form)
+            matrix = self._to_sparse_matrix(bilinear_form)
         elif out_type=='petsc':
-            return self._to_PETSc_matrix(bilinear_form)
+            matrix = self._to_PETSc_matrix(bilinear_form)
+        
+        return matrix
     
     def form_to_array(self, form, out_type='petsc'):
         rank = len(form.arguments())
@@ -64,7 +69,7 @@ class Assembler:
         elif rank==2:
             return self.to_matrix(form, out_type)
     
-    def product_form_to_array(self, product_form, out_type='petsc'):
+    def product_form_to_array(self, product_form, out_type='petsc'):        
         assert out_type in ['dense', 'sparse', 'petsc']
         
         # which kronecker product to use
@@ -81,7 +86,9 @@ class Assembler:
             x = self.form_to_array(x_form, out_type)
             y = self.form_to_array(y_form, out_type)
             products.append( kron_fns[out_type](x, y) )
-        return sum(products)
+            
+        array = sum(products)
+        return array
     
     ## LINEAR SYSTEM ASSEMBLY
     def assemble_product_system(self, lhs, rhs, bc=None, out_type='petsc'):
@@ -90,5 +97,5 @@ class Assembler:
         
         if bc:
             A, b = bc.apply(A, b)
+        
         return A, b
-    
