@@ -79,7 +79,6 @@ class ProductDirichletBC:
         bc = DirichletBC(self.marginal_function_space, 0, 'on_boundary')
         return bc.get_boundary_values().keys()
 
-    # TODO: speed this up
     def _get_product_boundary_dofs(self):
         # dofs ij where either i or j in marginal bdy dofs
         marginal_bdy_dofs = self.get_marginal_boundary_dofs()
@@ -139,35 +138,15 @@ class ProductDirichletBC:
         """Apply bc when A and b are PETSc Mat and Vec objects"""
         assert isinstance(A, PETSc.Mat)
         assert isinstance(b, PETSc.Vec)
-#         start = time.time()
         prod_bdy_dofs = self.get_product_boundary_dofs()
-#         end = time.time()
-#         print(f'get_product_boundary_dofs() took {end - start} seconds')
-        
-#         start = time.time()
         prod_bdy_coords = self.get_product_boundary_coords() 
-#         end = time.time()
-#         print(f'get_product_boundary_coords() took {end - start} seconds')
-        
-#         start = time.time()
         bvs = [self.boundary_values(*xy) for xy in prod_bdy_coords]
-#         end = time.time()
-#         print(f'evaluating bc.boundary_values(bdy_coords) took {end - start} seconds')
         
-#         start = time.time()
         A.zeroRows(prod_bdy_dofs, diag=1)
-#         end = time.time()
-#         print(f'applying bv to lhs took {end - start} seconds')
-        
-#         start = time.time()
         b.setValues(prod_bdy_dofs, bvs)
-#         end = time.time()
-#         print(f'applying bv to rhs took {end - start} seconds')
         return A, b
         
-    def apply(self, A, b):
-#         start = time.time()
-        
+    def apply(self, A, b):        
         if sps.issparse(A):
             result = self.sparse_apply(A, b)
         elif isinstance(A, np.ndarray):
@@ -175,6 +154,4 @@ class ProductDirichletBC:
         elif isinstance(A, PETSc.Mat):
             result = self.petsc_apply(A, b)
         
-#         end = time.time()
-#         print(f'BoundaryConditions.apply() took {end - start} seconds')
         return result

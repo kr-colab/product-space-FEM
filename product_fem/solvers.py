@@ -2,7 +2,6 @@ import numpy as np
 import scipy.sparse as sps
 import petsc4py.PETSc as PETSc
 from .transforms import to_Function, dense_to_PETSc
-import time
 
 
 class Solver:
@@ -32,7 +31,6 @@ class Solver:
         return u
     
     def solve(self, A, b):
-#         start = time.time()
         if isinstance(A, np.ndarray):
             u = self.dense_solve(A, b)
         elif isinstance(A, sps.csr_matrix):
@@ -41,6 +39,4 @@ class Solver:
             u = self.petsc_solve(A, b)[:]
         
         solution = to_Function(u, self.W)
-#         end = time.time()
-#         print(f'Solver.solve() took {end - start} seconds')
         return solution

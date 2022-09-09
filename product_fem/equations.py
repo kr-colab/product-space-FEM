@@ -9,7 +9,6 @@ from .transforms import dense_to_PETSc, vectorized_fn
 import numpy as np
 import petsc4py.PETSc as PETSc
 from scipy.sparse import csr_matrix
-import time
 
 
 class Equation:
@@ -76,9 +75,6 @@ class Equation:
     def derivative_component(self, i, m):
         """Compute the ith component of dF/dm, where F=Au-b.
         dAdm and dbdm"""
-#         basis_fn_i = self.control.get_basis(m)[i]
-#         dA_form = derivative(self.lhs, m, basis_fn_i)
-#         db_form = derivative(self.rhs, m, basis_fn_i)
         dA_forms, db_forms = self.derivative_forms()
         j = self.control.argwhere(m)
         dA_form = dA_forms[j][i]

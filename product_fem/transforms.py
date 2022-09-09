@@ -3,7 +3,6 @@ import numpy as np
 import scipy.sparse as sps
 import product_fem as pf
 import petsc4py.PETSc as PETSc
-import time
 
 
 # SPATIAL TRANSFORMS
@@ -30,7 +29,6 @@ def proj(xy, v):
         v = np.array(v).reshape(-1, 1)
     if v.ndim==1:
         v = v.reshape(-1, 1)
-#         v = v[:, np.newaxis]
     P = v.dot(v.T) / v.T.dot(v)
     assert len(P.T)==len(xy)
     return P.dot(xy)
@@ -72,15 +70,12 @@ def PETSc_vector_kron(A, B):
     return dense_to_PETSc(product_vector)
     
 def PETSc_kron(A, B):
-#     start = time.time()
     # inputs must be PETSc.Mat or PETSc.Vec
     if isinstance(A, PETSc.Mat):
         kron = PETSc_matrix_kron(A, B)
     elif isinstance(A, PETSc.Vec):
         kron = PETSc_vector_kron(A, B)
     
-#     end = time.time()
-#     print(f'transforms.PETSc_kron() took {end - start} seconds')
     return kron
 
 # from strings
@@ -162,7 +157,6 @@ def to_Function(func, V):
     
 # to numpy arrays
 def to_array(func, V):
-    
     # from strings
     if isinstance(func, str):
         return string_to_array(func, V)
