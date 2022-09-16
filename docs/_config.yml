@@ -9,6 +9,7 @@ only_build_toc_files: true
 
 execute:
   execute_notebooks: cache
+  timeout: 120
 
 repository:
   url: https://github.com/mattlukac/product-space-fem
@@ -40,3 +41,4 @@ sphinx:
       myst_enable_extensions:
       - colon_fence
       - deflist
+      - dollarmath

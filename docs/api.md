@@ -83,10 +83,6 @@ TODO: organize
 ```
 
 ```{eval-rst}
-.. autoclass:: Function
-```
-
-```{eval-rst}
 .. autoclass:: ProductForm
 ```
 
