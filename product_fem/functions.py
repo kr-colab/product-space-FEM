@@ -206,7 +206,7 @@ class ProductFunction:
         return to_Function(u_x, self.W.V)
 
     def plot(self, x):
-        fig, ax = plt.subplots(figsize=(6,6))
+        fig, ax = plt.subplots(dpi=150)
 
         u_x = self.get_slice(x)
         p = plot(u_x)

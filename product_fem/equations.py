@@ -1,14 +1,16 @@
 from product_fem import ProductDirichletBC, ProductForm, Control, to_Function
-from fenics import VectorFunctionSpace, as_matrix, Function, TrialFunction, TestFunction, dx, Dx, inner, grad, div, exp
+from fenics import plot, VectorFunctionSpace, as_matrix, Function, TrialFunction, TestFunction, dx, Dx, inner, grad, div, exp
 from .assemblers import Assembler
 from .boundary_conditions import default_boundary_conditions
 from .function_spaces import ProductFunctionSpace
 from .solvers import Solver
 from .forms import derivative, depends_on
 from .transforms import dense_to_PETSc, vectorized_fn
+from .plotting import plot_ellipse_field
 import numpy as np
 import petsc4py.PETSc as PETSc
 from scipy.sparse import csr_matrix
+import matplotlib.pyplot as plt
 
 
 class Equation:
@@ -193,7 +195,26 @@ class HittingTimes2D(Equation):
         # mu and sig have dimensions 2 and 3, resp.
         mu = vectorized_fn(W.V, dim=2, name='mu')
         sig = vectorized_fn(W.V, dim=3, name='sig')
+        
+        sig_arr = np.log(0.5) * np.ones(sig.function_space().dim())
+        sig_arr[2::3] = 0
+        sig.vector()[:] = sig_arr
         return mu, sig
+    
+    def plot_control(self):
+        m = self.control
+        
+        fig, axs = plt.subplots(1, 2, dpi=150)
+        for ax in axs: ax.set_aspect('equal')
+        
+        plt.sca(axs[1])
+        plot(m[0])
+
+        plt.sca(axs[0])
+        plot_ellipse_field(m[1], axs[0])
+
+        axs[1].set_xlim(axs[0].get_xlim())
+        axs[1].set_ylim(axs[0].get_ylim())
         
 
 def HittingTimes(W, u_bdy, epsilon):

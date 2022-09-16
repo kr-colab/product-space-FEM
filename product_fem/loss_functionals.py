@@ -42,8 +42,6 @@ class Functional:
         dJ_forms = self.derivative_forms()
         j = self.control.argwhere(m)
         return dJ_forms[j][i]
-#         basis_fn_i = self.control.get_basis(m)[i]
-#         return derivative(self.ufl_form, m, basis_fn_i)
     
     def derivative(self, control):
         dJ = []

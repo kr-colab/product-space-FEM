@@ -2,6 +2,10 @@ from .transforms import dense_to_PETSc
 from .functions import Control
 import scipy.optimize as opt
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+from fenics import plot
+from .plotting import plot_ellipse_field
 
 
 def taylor_test(invp):
@@ -59,12 +63,10 @@ class InverseProblem:
         dAdm, dbdm = self.equation.derivative_component(i, m)
         dJdm = self.loss.derivative_component(i, m)
         
-#         dFdm = dbdm - dAdm.dot(u.array)
         u = dense_to_PETSc(u.array)
         dFdm = dbdm - dAdm * u
         
         p = dense_to_PETSc(p.array)
-#         gradient = -p.dot(dFdm) + dJdm
         gradient = -p.dot(dFdm) + dJdm
         return gradient
         
@@ -120,6 +122,35 @@ class InverseProblem:
         m0.update(results['x'])
         return allvecs, results
         
+    # NOTE: this isn't a great place for this function since this only plots 
+    # the control in the HittingTimes2D equation
+    def animate(self, m_hats, save_as, **kwargs):
+        # initialize figure and axes 
+        m = self.equation.control
+        m.update(m_hats[0])
+        fig, ax = plt.subplots(1, 2, dpi=150)
+
+        q = ax[1].quiver(np.empty(49), np.empty(49), np.empty(49), np.empty(49))
+        s = ax[0].scatter([], [])
+
+        # plot frame i
+        def animate(i):
+            nonlocal q, s
+            if i % 10 == 0: print(f'animating frame {i} / {len(m_hats)}')
+            # update to control at ith iteration
+            m.update(m_hats[i])
+            q.axes.clear()
+            s.axes.clear()
+            q = plot(m[0])
+            ax[0] = plot_ellipse_field(m[1], ax[0])
+            return [q] + ax[0].get_children()
+
+        anim = FuncAnimation(fig, animate, frames=len(m_hats), interval=1, blit=True)
+        
+        writer = kwargs.get('writer', 'ffmpeg')
+        fps = kwargs.get('fps', 18)
+        anim.save(save_as, writer='ffmpeg', fps=18)
+
     def plot_results(self):
         """This can be different for each inverse equation
         but should include plots of m_hat and m_true and

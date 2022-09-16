@@ -183,3 +183,39 @@ def vectorized_fn(V, dim, name):
     degree = V.ufl_element().degree()
     VV = VectorFunctionSpace(mesh, family, degree, dim)
     return Function(VV, name=name)
+
+def sig_to_cov(sig):
+    """
+    Converts the unconstrained parametrization of the covariance matrix
+    to a dim=3 array where cov[i] is the covariance matrix at the ith dof
+    
+    At each point, the unconstrained parametrization sig has 3 values
+    and the covariance matrix K = L^t L where 
+    
+        L = [ exp(sig[0])    sig[2]  ] 
+            [     0       exp(sig[1])]
+        
+    This factorization is unique so long as the diagonal of L is positive,
+    which explains the use of exp here. Explicitly, the covariance matrix is
+    
+        K = [   exp(2 * sig[0])        exp(sig[0]) * sig[2]   ]
+            [ exp(sig[0]) * sig[2]   exp(2 sig[1]) + sig[2]^2 ]
+    """
+    # get array if sig is Function
+    if isinstance(sig, Function):
+        assert len(sig)==3
+        sig = sig.vector()[:]
+    
+    # split sig into components
+    assert len(sig) % 3 == 0
+    s0 = sig[::3]
+    s1 = sig[1::3]
+    s2 = sig[2::3]
+    
+    # L at each dof, moveaxis so L[i] is 2x2 covariance matrix at ith dof
+    Ls = np.array( [[np.exp(s0), s2], [np.zeros(len(s0)), np.exp(s1)]] )
+    Ls = np.moveaxis(Ls, source=[0,1,2], destination=[1,2,0])
+        
+    # vectorized calculation of L^t L at each dof
+    covs = np.einsum('ijl, ilk -> ijk', Ls.transpose(0,2,1), Ls)
+    return covs

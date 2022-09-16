@@ -28,6 +28,7 @@ class Solver:
         
         u = A.createVecRight()
         ksp.solve(b, u)
+        if not ksp.converged: print('Krylov solver did not converge, adjust expectations')
         return u
     
     def solve(self, A, b):

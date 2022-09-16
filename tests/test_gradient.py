@@ -77,6 +77,7 @@ class TestGradient:
         epsilon = 1e-2
         eqn = HittingTimes(W, u_bdy, epsilon)
         m = eqn.control
+        m.update(np.zeros(m.dim()))
 
         # loss functional
         data = eqn.solve()
