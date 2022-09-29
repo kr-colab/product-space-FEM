@@ -2,7 +2,7 @@ from fenics import DirichletBC, near
 import numpy as np
 import scipy.sparse as sps
 import petsc4py.PETSc as PETSc
-import time
+from .transforms import dense_to_PETSc
 
 def near2d(x, y, tol=3e-10):
     return np.linalg.norm(x-y) < tol
@@ -137,7 +137,8 @@ class ProductDirichletBC:
     def petsc_apply(self, A, b):
         """Apply bc when A and b are PETSc Mat and Vec objects"""
         assert isinstance(A, PETSc.Mat)
-        assert isinstance(b, PETSc.Vec)
+        if not isinstance(b, PETSc.Vec):
+            b = dense_to_PETSc(b)
         prod_bdy_dofs = self.get_product_boundary_dofs()
         prod_bdy_coords = self.get_product_boundary_coords() 
         bvs = [self.boundary_values(*xy) for xy in prod_bdy_coords]

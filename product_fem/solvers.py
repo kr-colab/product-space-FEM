@@ -3,6 +3,26 @@ import scipy.sparse as sps
 import petsc4py.PETSc as PETSc
 from .transforms import to_Function, dense_to_PETSc
 
+ksp_error = {3: 'CONVERGED_ATOL',
+             9: 'CONVERGED_ATOL_NORMAL',
+             6: 'CONVERGED_CG_CONSTRAINED',
+             5: 'CONVERGED_CG_NEG_CURVE',
+             8: 'CONVERGED_HAPPY_BREAKDOWN',
+             0: 'CONVERGED_ITERATING',
+             4: 'CONVERGED_ITS',
+             2: 'CONVERGED_RTOL',
+             1: 'CONVERGED_RTOL_NORMAL',
+             7: 'CONVERGED_STEP_LENGTH',
+             -5: 'DIVERGED_BREAKDOWN',
+             -6: 'DIVERGED_BREAKDOWN_BICG',
+             -4: 'DIVERGED_DTOL',
+             -10: 'DIVERGED_INDEFINITE_MAT',
+             -8: 'DIVERGED_INDEFINITE_PC',
+             -3: 'DIVERGED_MAX_IT',
+             -9: 'DIVERGED_NANORINF',
+             -7: 'DIVERGED_NONSYMMETRIC',
+             -2: 'DIVERGED_NULL',
+             -11: 'DIVERGED_PCSETUP_FAILED'}
 
 class Solver:
     """Solver acts on linear systems Ax=b by inverting A."""
@@ -28,7 +48,8 @@ class Solver:
         
         u = A.createVecRight()
         ksp.solve(b, u)
-        if not ksp.converged: print('Krylov solver did not converge, adjust expectations')
+        if not ksp.converged: 
+            print(f'Krylov solver did not converge, reason: {ksp_error[ksp.getConvergedReason()]}')
         return u
     
     def solve(self, A, b):

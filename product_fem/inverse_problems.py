@@ -1,5 +1,6 @@
 from .transforms import dense_to_PETSc
 from .functions import Control
+from .boundary_conditions import ProductDirichletBC
 import scipy.optimize as opt
 import numpy as np
 import matplotlib.pyplot as plt
@@ -48,7 +49,14 @@ class InverseProblem:
         self.loss = loss
         self.solver = equation.solver
         self.assembler = equation.assembler
+        self.adjoint_bc = self._set_adjoint_bc(equation.bc)
         
+    def _set_adjoint_bc(self, bc):
+        W = self.equation.bc.product_function_space
+        u_bdy = 0
+        on_boundary = bc.on_boundary
+        return ProductDirichletBC(W, u_bdy, on_boundary)
+    
     # solving adjoint requires knowledge of dJdu    
     def solve_adjoint(self, u):
         # adjoint lhs is transpose(lhs from equation)
@@ -56,6 +64,9 @@ class InverseProblem:
         
         # adjoint rhs is dJdu
         b = -self.loss.partial_u(u)
+        
+        # enforce adjoint boundary condition: p=0 on boundary
+        A, b = self.adjoint_bc.apply(A, b)
         
         return self.solver.solve(A, b)
         

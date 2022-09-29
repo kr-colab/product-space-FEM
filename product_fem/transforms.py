@@ -16,11 +16,11 @@ def translate(xy, p):
 # rotate coordinates xy to new x-axis v
 def rotate(xy, v):
     if isinstance(v, list):
-        v = np.array(v).reshape(-1, 1)
+        v = np.array(v)
     v /= np.linalg.norm(v)
     cos, sin = v.flatten()
-    R = np.array([[cos, sin], [-sin, cos]])
-    return R.dot(xy)
+    R = np.array([[cos, -sin], [sin, cos]])
+    return R.dot(xy.T).T
 
 # given point (x,y) the orthogonal projection onto v is 
 # (vv^T)/(v^Tv) (x,y)

@@ -1,7 +1,8 @@
 from fenics import assemble, inner, dx, grad, Function, Constant
 from ufl import derivative
 from .transforms import to_Function
-from numpy import array, ndarray, dot, ones
+from .functions import ProductFunction, SpatialData
+import numpy as np
 
 
 class Functional:
@@ -86,16 +87,46 @@ class SmoothingRegularizer(Functional):
         super().__init__(control, sum(forms))
 
 
-class L2Error:
+class L2ErrorSum:
+    """Defined by J(u) = 1/2 sum (u - u_d)^2 from SpatialData u_d
+    and the sum is over all sample points"""
+    
+    def __init__(self, data):
+        self.data = data.data
+        self.W = data.W
+        self.sample_points = data.points
+        self.eval_matrix = data.eval_matrix
+    
+    def __call__(self, u):
+        return self.evaluate(u)
+    
+    def evaluate(self, u):
+        # evaluate u at sample points
+        u_eval = self.eval_matrix.dot(u.array)
+        sq_error = np.sum(1/2 * (u_eval - self.data)**2)
+        return sq_error
+
+    def derivative(self, u):
+        """The ith derivative component is 
+            (dJ/du)_i = sum_{sample points} (u - data) * phi_i
+        where phi_i is the ith basis element in W
+        """
+        P = self.eval_matrix
+        u_eval = P.dot(u.array)
+        dJdu = P.T.dot(u_eval - self.data)
+        return dJdu
+    
+    
+class L2ErrorIntegral:
     """Defined by J(u) = 1/2 int (u - u_d)^2 dxdy 
-    given SpatialData u_d"""
+    given ProductFunction u_d"""
     
     def __init__(self, data, weights=None):
         self.data = data
         if weights is None:
-            weights = ones(len(data))
+            weights = np.ones(len(data))
         else:
-            assert isinstance(weights, ndarray)
+            assert isinstance(weights, np.ndarray)
             assert len(weights)==len(data)
         self.weights = to_Function(weights, data.function_space())
         
@@ -125,6 +156,14 @@ class L2Error:
         return dJdu
 
     
+class L2Error:
+    def __new__(cls, data):
+        if isinstance(data, ProductFunction):
+            return L2ErrorIntegral(data)
+        elif isinstance(data, SpatialData):
+            return L2ErrorSum(data)
+        
+        
 class LossFunctional:
     """
     The default loss functional has 3 parts: ``L2 error + smoothing reg + L2 reg``

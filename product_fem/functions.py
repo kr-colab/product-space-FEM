@@ -219,6 +219,8 @@ class ProductFunction:
         plt.show()
 
 
+# NOTE: it would be more efficient to store just the marginal bases 
+#       and perform a kronecker product when needed
 class ProductBasisFunction(ProductFunction):
 
     def __init__(self, W, i, j, **kwargs):
@@ -236,8 +238,28 @@ class ProductBasisFunction(ProductFunction):
 class SpatialData:
     """Contains spatial sampling locations and measurements"""
 
-    def __init__(self, data):
+    def __init__(self, data, points, W):
         self.data = data
-
-    def as_product_function(self):
-        """Returns the ProductFunction representation of spatial data"""
+        self.points = points
+        self.W = W
+        self.eval_matrix = self._assemble_eval_matrix()
+        
+    def _assemble_eval_matrix(self):
+        """Given n sample points, we wish to evaluate an arbitrary
+        ProductFunction u at the n(n+1)/2 unordered pairs of points.
+        The evaluation matrix E is defined so that
+            u(x_i, y_i) = (EU)_i     i = 1, ..., n(n+1)/2
+        where u(x,y) = sum_i U_i phi_i(x,y)
+        """
+        n = len(self.points)
+        N = int(n * (n + 1) / 2)
+        basis = self.W.marginal_basis()
+        
+        idx, E = 0, np.zeros((N, self.W.dim()))
+        for i, x in enumerate(self.points):
+            px = [phi(x) for phi in basis]
+            for y in self.points[i:]:
+                py = [phi(y) for phi in basis]
+                E[idx] = np.kron(px, py)
+                idx += 1
+        return E
