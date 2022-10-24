@@ -216,7 +216,7 @@ class ProductFunction:
         divider = make_axes_locatable(ax)
         cax = divider.append_axes('right', size='5%', pad=0.05)
         fig.colorbar(p, cax=cax, orientation='vertical')
-        plt.show()
+        return fig
 
 
 # NOTE: it would be more efficient to store just the marginal bases 

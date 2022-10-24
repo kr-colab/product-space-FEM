@@ -102,8 +102,9 @@ class L2ErrorSum:
     
     def evaluate(self, u):
         # evaluate u at sample points
-        u_eval = self.eval_matrix.dot(u.array)
-        sq_error = np.sum(1/2 * (u_eval - self.data)**2)
+        P = self.eval_matrix
+        u_eval = P.dot(u.array)
+        sq_error = np.sum(1/2 * (u_eval - self.data)**2) / len(P)
         return sq_error
 
     def derivative(self, u):
@@ -113,7 +114,7 @@ class L2ErrorSum:
         """
         P = self.eval_matrix
         u_eval = P.dot(u.array)
-        dJdu = P.T.dot(u_eval - self.data)
+        dJdu = P.T.dot(u_eval - self.data) / len(P)
         return dJdu
     
     

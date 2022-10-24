@@ -17,11 +17,16 @@ def translate(xy, p):
 def rotate(xy, v):
     if isinstance(v, list):
         v = np.array(v)
+    assert np.linalg.norm(v) > np.finfo(v.dtype).eps
     v /= np.linalg.norm(v)
     cos, sin = v.flatten()
     R = np.array([[cos, -sin], [sin, cos]])
-    return R.dot(xy.T).T
+    return xy.dot(R.T)
 
+def stretch(xy, s):
+    # rescale x and y axes by factor of s[0] and s[1], resp.
+    return xy * s
+    
 # given point (x,y) the orthogonal projection onto v is 
 # (vv^T)/(v^Tv) (x,y)
 def proj(xy, v):

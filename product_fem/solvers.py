@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.sparse as sps
 import petsc4py.PETSc as PETSc
-from .transforms import to_Function, dense_to_PETSc
+from .transforms import to_Function, dense_to_PETSc, PETSc_to_sparse
 
 ksp_error = {3: 'CONVERGED_ATOL',
              9: 'CONVERGED_ATOL_NORMAL',
@@ -29,6 +29,7 @@ class Solver:
     
     def __init__(self, W):
         self.W = W
+        self.ksp = PETSc.KSP().create()
         
     def dense_solve(self, A, b):
         u = np.linalg.solve(A, b)
@@ -43,13 +44,21 @@ class Solver:
             b = dense_to_PETSc(b)
             
         # krylov solver for Au = b
-        ksp = PETSc.KSP().create()
-        ksp.setOperators(A)
-        
+#         ksp.setType('ibcgs')
+        self.ksp.setOperators(A)
         u = A.createVecRight()
-        ksp.solve(b, u)
-        if not ksp.converged: 
-            print(f'Krylov solver did not converge, reason: {ksp_error[ksp.getConvergedReason()]}')
+        self.ksp.solve(b, u)
+        
+        if not self.ksp.converged: 
+            reason = ksp_error[self.ksp.getConvergedReason()]
+            if reason=='DIVERGED_MAX_IT':
+                maxits = self.ksp.getIterationNumber()
+                resnorm = self.ksp.getResidualNorm()
+                print(f'Krylov solver reached max {maxits} iterations')
+                print(f'Residual norm is {resnorm}')
+            else:
+                raise Exception(f'Krylov solver did not converge, reason: {reason}')
+        
         return u
     
     def solve(self, A, b):
