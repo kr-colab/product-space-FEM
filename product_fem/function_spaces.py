@@ -67,6 +67,7 @@ class ProductFunctionSpace:
         name = f'phi_{i},{j}'
         return ProductBasisFunction(self, i, j, name=name)
     
+    # NOTE: this might not be indexed correctly
     def basis(self):
         return [self._basis_ij(i, j) for i, j in self.dofs()]
     

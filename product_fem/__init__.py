@@ -2,7 +2,7 @@ from .assemblers import Assembler
 from .boundary_conditions import ProductDirichletBC
 from .forms import derivative, ProductForm
 from .function_spaces import ProductFunctionSpace
-from .functions import ProductFunction, Control
+from .functions import ProductFunction, Control, SpatialData
 from .inverse_problems import InverseProblem, taylor_test
 from .loss_functionals import LossFunctional, ReducedLossFunctional
 from .solvers import Solver

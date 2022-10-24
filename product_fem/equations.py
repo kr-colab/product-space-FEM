@@ -212,12 +212,9 @@ class HittingTimes2D(Equation):
 
         plt.sca(axs[0])
         plot_ellipse_field(m[1], axs[0])
-
-        axs[1].set_xlim(axs[0].get_xlim())
-        axs[1].set_ylim(axs[0].get_ylim())
         
 
-def HittingTimes(W, u_bdy, epsilon):
+class HittingTimes:
     """
     TODO: change this CoalescenceTimes
     
@@ -253,11 +250,12 @@ def HittingTimes(W, u_bdy, epsilon):
     :param u_bdy: The values for $u$ along the "diagonal"; either a float or a callable.
     :param float epsilon: The width of the "diagonal" boundary affected by ``u_bdy``.
     """
-    gdim = W.V.ufl_domain().geometric_dimension()
-    if gdim==1:
-        return HittingTimes1D(W, u_bdy, epsilon)
-    elif gdim==2:
-        return HittingTimes2D(W, u_bdy, epsilon)   
+    def __new__(cls, W, u_bdy, epsilon):
+        gdim = W.V.ufl_domain().geometric_dimension()
+        if gdim==1:
+            return HittingTimes1D(W, u_bdy, epsilon)
+        elif gdim==2:
+            return HittingTimes2D(W, u_bdy, epsilon)   
     
     
 # -eps Laplacian(u) + b•grad(u) = f

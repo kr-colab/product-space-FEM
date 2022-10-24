@@ -1,5 +1,6 @@
 from .transforms import dense_to_PETSc
 from .functions import Control
+from .boundary_conditions import ProductDirichletBC
 import scipy.optimize as opt
 import numpy as np
 import matplotlib.pyplot as plt
@@ -48,7 +49,14 @@ class InverseProblem:
         self.loss = loss
         self.solver = equation.solver
         self.assembler = equation.assembler
+        self.adjoint_bc = self._set_adjoint_bc(equation.bc)
         
+    def _set_adjoint_bc(self, bc):
+        W = self.equation.bc.product_function_space
+        u_bdy = 0
+        on_boundary = bc.on_boundary
+        return ProductDirichletBC(W, u_bdy, on_boundary)
+    
     # solving adjoint requires knowledge of dJdu    
     def solve_adjoint(self, u):
         # adjoint lhs is transpose(lhs from equation)
@@ -56,6 +64,9 @@ class InverseProblem:
         
         # adjoint rhs is dJdu
         b = -self.loss.partial_u(u)
+        
+        # enforce adjoint boundary condition: p=0 on boundary
+#         A, b = self.adjoint_bc.apply(A, b)
         
         return self.solver.solve(A, b)
         
@@ -70,8 +81,9 @@ class InverseProblem:
         gradient = -p.dot(dFdm) + dJdm
         return gradient
         
-    def compute_gradient(self, control):
-        u = self.equation.solve(control)
+    def compute_gradient(self, control, u=None):
+        if u is None:
+            u = self.equation.solve(control)
         p = self.solve_adjoint(u)
         gradient = []
         for m in control:
@@ -95,32 +107,48 @@ class InverseProblem:
     def set_loss(self, loss):
         self.loss = loss
         
-    def compute_loss(self, m):
-        u = self.equation.solve(m)
+    def compute_loss(self, m, u=None):
+        if u is None:
+            u = self.equation.solve(m)
         return self.loss.evaluate(u, m)
     
     def loss_and_grad(self, m):
         # assume m is array
-        control = self.equation.control
-        control.update(m)
-        loss = self.compute_loss(control)
-        grad = self.compute_gradient(control)
+#         control = self.equation.control
+#         control.update(m)
+        u = self.equation.solve(m)
+        m = self.equation.control
+        loss = self.compute_loss(m, u)
+        grad = self.compute_gradient(m, u)
         return loss, grad
     
     def optimize(self, m0, method='L-BFGS-B', *args, **kwargs):
         allvecs = [m0.array()]
+        
+        u0 = self.equation.solve(m0)
+        l2err = [self.loss.l2_error(u0)]
+        l2reg = [self.loss.l2_reg(m0)]
+        smreg = [self.loss.smoothing_reg(m0)]
+        
         def callback(m):
             allvecs.append(m)
             control = self.equation.control
             control.update(m)
-            print(self.compute_loss(control))
+            
+            u = self.equation.solve(control)
+            l2err.append(self.loss.l2_error(u))
+            l2reg.append(self.loss.l2_reg(control))
+            smreg.append(self.loss.smoothing_reg(control))
+            
+            print(self.compute_loss(control), l2err[-1], l2reg[-1], smreg[-1])
             
         fun = self.loss_and_grad
         jac = True
         options = kwargs.get('options', {})
         results = opt.minimize(fun, m0.array(), args, method, jac, callback=callback, options=options)
         m0.update(results['x'])
-        return allvecs, results
+        losses = (l2err, l2reg, smreg)
+        return allvecs, losses, results
         
     # NOTE: this isn't a great place for this function since this only plots 
     # the control in the HittingTimes2D equation
