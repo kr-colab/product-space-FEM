@@ -38,14 +38,13 @@ class TestGradient:
         def taylor_remainder(h):
             Jp = []
             for i in range(m.dim()):
-                m.update(np.ones(m.dim()) + h * e[i])
-#                 if i==0:
-#                     m.update(m.array() + h * e[i])
-#                 else:
-#                     m.update(m.array() - h * e[i-1] + h * e[i])
+                if i==0:
+                    m.update(m.array() + h * e[i])
+                else:
+                    m.update(m.array() - h * e[i-1] + h * e[i])
                 Jp.append(invp.compute_loss(m))
 
-            m.update(np.ones(m.dim()))
+            m.update(m.array() - h * e[i])
 
             return [abs(Jp[i] - Jm - h * dJ[i]) for i in range(m.dim())]
 

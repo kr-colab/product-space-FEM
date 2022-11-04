@@ -1,11 +1,11 @@
-from product_fem import ProductDirichletBC, ProductForm, Control, to_Function
 from fenics import plot, VectorFunctionSpace, as_matrix, Function, TrialFunction, TestFunction, dx, Dx, inner, grad, div, exp
 from .assemblers import Assembler
-from .boundary_conditions import default_boundary_conditions
+from .boundary_conditions import default_boundary_conditions, ProductDirichletBC
+from .functions import Control
 from .function_spaces import ProductFunctionSpace
 from .solvers import Solver
-from .forms import derivative, depends_on
-from .transforms import dense_to_PETSc, vectorized_fn
+from .forms import derivative, depends_on, ProductForm
+from .transforms import dense_to_PETSc, vectorized_fn, to_Function
 from .plotting import plot_ellipse_field
 import numpy as np
 import petsc4py.PETSc as PETSc

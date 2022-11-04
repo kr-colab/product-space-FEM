@@ -1,6 +1,7 @@
 import pytest
-from numpy import e, exp, log, sin, cos, corrcoef
-from product_fem import ProductFunctionSpace, to_Function, Control
+from numpy import e, eye, exp, isnan, mean, ones_like, log, divide, sin, cos, corrcoef
+from numpy.random import randn, uniform, seed
+from product_fem import ProductFunctionSpace, to_Function, Control, SpatialData
 from product_fem.loss_functionals import L2Error, L2Regularizer, SmoothingRegularizer
 from fenics import UnitIntervalMesh, UnitSquareMesh, FunctionSpace, \
      assemble, dx, Function
@@ -111,6 +112,61 @@ class TestFunctionals:
         
         assert abs(corrcoef(diffs, dE)[0,1] - 1) < 5e-4
     
+    def test_2d_l2_error_sum_derivative(self):
+        seed(1234)
+        points = uniform(0, 1, 10).reshape(5, 2)
+        N = int(len(points) * (len(points) + 1) / 2)
+        data = randn(N)
+        
+        mesh = UnitSquareMesh(9, 9)
+        V = FunctionSpace(mesh, 'CG', 1)
+        W = ProductFunctionSpace(V)
+        
+        data = SpatialData(data, points, W)
+        J = L2Error(data)
+        
+        def u_func(x, y):
+            return exp(x[0] - y[1]) - exp(3 * y[0] - 5 * x[1])
+        u = to_Function(u_func, W)
+        
+        # taylor test dJdu 
+        def taylor_test(J, u):
+            Ju = J.evaluate(u)
+            dJ = J.derivative(u)
+            e = eye(u.dim())
+
+            # taylor remainder |J - Jp - h * dJ| = O(h^2)
+            def remainder(h):
+                Jp = []
+                for i in range(u.dim()):
+                    if i==0:
+                        u.assign(u.array + h * e[i])
+                    else:
+                        u.assign(u.array - h * e[i-1] + h * e[i])
+
+                    Jp.append(J.evaluate(u))
+
+                u.assign(u.array - h * e[i])
+                return [abs(Jp[i] - Ju - h * dJ[i]) for i in range(u.dim())]
+
+            c = 2
+            hs = [1. / (c**k) for k in range(1, 4)]
+            rs = [remainder(h) for h in hs]
+
+            # rates should all be close to 2
+            rates = [log(divide(rs[i-1], rs[i])) / log(c) 
+                     for i in range(1, len(rs))]
+            return rates
+        
+        rates = taylor_test(J, u)
+        rates = [r[~isnan(r)] for r in rates]
+        
+        twos = 2 * ones_like(rates[0])
+        assert mean((rates[0] - twos)**2) < 5e-16
+        
+        twos = 2 * ones_like(rates[1])
+        assert mean((rates[1] - twos)**2) < 5e-15
+
     def test_1d_l2_reg(self):
         n = 25
         mesh = UnitIntervalMesh(n-1)
