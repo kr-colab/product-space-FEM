@@ -1,4 +1,4 @@
-from fenics import project, interpolate, Expression, Function, FunctionSpace, VectorFunctionSpace
+from fenics import project, interpolate, Expression, Function, FunctionSpace, VectorFunctionSpace, cells
 import numpy as np
 import scipy.sparse as sps
 import product_fem as pf
@@ -224,3 +224,38 @@ def sig_to_cov(sig):
     # vectorized calculation of L^t L at each dof
     covs = np.einsum('ijl, ilk -> ijk', Ls.transpose(0,2,1), Ls)
     return covs
+
+def cov_eigenvals(cov):
+    """Assume cov is 2x2 spd matrix.
+    The eigenvalues of a symmetric 2x2 matrix [[a, b], [b, c]] are
+        lambda = 1/2 (a+c +- sqrt((a-c)^2 + 4b^2))
+    """
+    a, b, c = cov[0,0], cov[1,0], cov[1,1]
+    ac = a + c
+    root = np.sqrt((a - c)**2 + 4 * b**2)
+    lambda_1 = 1/2 * (ac + root)
+    lambda_2 = 1/2 * (ac - root)
+    return lambda_1, lambda_2
+
+def local_peclets(mu, sig):
+    """For a mesh cell C and a point x in C the Peclet number is
+        Pe_C(x) = (|mu(x)| h_C) / (2 a(x))
+    where a(x) is the smallest eigenvalue of the covariance matrix at x
+    and h_C is the scale parameter for the cell.
+    We compute local Peclet numbers by looping through the mesh cells,
+    letting x be the cell midpoint.
+    """
+    mesh = mu.function_space().mesh()
+    pecs = []
+    for cell in cells(mesh):
+        x = cell.midpoint().array()[:-1]
+        mu_x = np.linalg.norm(mu(x))
+        sig_x = sig(x)
+        cov_x = sig_to_cov(sig_x).squeeze()
+        _, lambda_2 = cov_eigenvals(cov_x)
+        h = cell.h()
+        
+        peclet = 0.5 * mu_x * h / lambda_2
+        pecs.append((x, peclet))
+    
+    return pecs

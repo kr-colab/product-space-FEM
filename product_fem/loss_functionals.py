@@ -89,7 +89,8 @@ class SmoothingRegularizer(Functional):
 
 class L2ErrorSum:
     """Defined by J(u) = 1/2 sum (u - u_d)^2 from SpatialData u_d
-    and the sum is over all sample points"""
+    and the sum is over all sample points
+    """
     
     def __init__(self, data):
         self.data = data.data
@@ -149,7 +150,6 @@ class L2ErrorIntegral:
         int f phi_i phi_j dxdy = sum_kl f_kl int phi_k phi_i dx phi_l phi_j dy
         this is just f dotted with the product mass 
         M_ik,jl := (int phi_k phi_i dx) (int phi_l phi_j dy)"""
-        
         r = (self.weights * (u - self.data)).as_matrix()
         pmass = u.function_space().product_mass()
         dJdu = pmass.dot(r.dot(pmass)).flatten()
@@ -166,8 +166,7 @@ class L2Error:
         
         
 class LossFunctional:
-    """
-    The default loss functional has 3 parts: ``L2 error + smoothing reg + L2 reg``
+    """The default loss functional has 3 parts: ``L2 error + smoothing reg + L2 reg``
     ```
     Loss(u_d, m) = int (u - u_d)^2 dx + alpha int (grad(m)^2 + m^2) dx
     ```

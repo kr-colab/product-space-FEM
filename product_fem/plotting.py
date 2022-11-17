@@ -73,3 +73,18 @@ def plot_ellipse_field(sig, ax, **kwargs):
         ax.scatter(x, y, color='black', s=1)
         ax.add_patch(ellipse_patch(c, x, y, ax, **kwargs))
     return ax
+
+def plot_peclets(mesh, peclets):
+    xs = np.array([x for x, _ in peclets])
+    ps = np.array([p for _, p in peclets])
+    
+    fig, ax = plt.subplots()
+
+    lines = fx.plot(mesh)
+    for line in lines:
+        ax.add_line(line)
+    s = ax.scatter(xs[:,0], xs[:,1], s=ps*100)
+
+    plt.legend(*s.legend_elements("sizes", color="C0", num=6, func=lambda s: s/100), 
+               bbox_to_anchor=(1, 1), title="Peclet numbers")
+    return fig, ax

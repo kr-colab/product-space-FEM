@@ -191,14 +191,16 @@ class ProductFunction:
 
     def as_matrix(self):
         """Since u(x,y) = sum_ij U_ij phi_i(x)phi_j(y)
-        we can represent a ProductFunction as the matrix U."""
+        we can represent a ProductFunction as the matrix U.
+        """
         return self.array.reshape(self.W.V.dim(), self.W.V.dim())
 
     def get_slice(self, x):
         """Given slice x, return u_x(y) := u(x,y) as a function of y.
         This sliced function is now a Function with function space V.
         In V the slice is expanded as u_x(y) = sum_j U_j phi_j(y)
-        where U_j = sum_i u_ij phi_i(x)"""
+        where U_j = sum_i u_ij phi_i(x)
+        """
         basis = self.W.marginal_basis()
         basis_x = np.array([phi(x) for phi in basis])
         U = self.as_matrix()

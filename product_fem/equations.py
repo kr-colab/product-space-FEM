@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 
 
 class Equation:
+    """Base class for product space PDEs"""
     
     def __init__(self, lhs, rhs, control, bc=None):
         self.lhs = lhs

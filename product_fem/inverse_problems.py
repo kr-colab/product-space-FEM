@@ -147,7 +147,9 @@ class InverseProblem:
         options = kwargs.get('options', {})
         results = opt.minimize(fun, m0.array(), args, method, jac, callback=callback, options=options)
         m0.update(results['x'])
-        losses = (l2err, l2reg, smreg)
+        losses = {'l2err': l2err, 
+                  'l2reg': l2reg, 
+                  'smreg': smreg}
         return allvecs, losses, results
         
     # NOTE: this isn't a great place for this function since this only plots 
