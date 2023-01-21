@@ -1,0 +1,145 @@
+initialize() {
+	initializeSLiMModelType("nonWF");
+	initializeSLiMOptions(dimensionality="xy");
+	initializeTreeSeq();
+	// These are default params that can be modified with -d at runtime
+	// or read in from "params.slim" (NOTE: params.slim will override these!)
+	// The file params.slim will be read from the working directory, or
+	// from OUTDIR if this is defined on the command line.
+	defaults = Dictionary(
+		"LAMBDA", 3.0, // birth rate
+		"K", 2.0,      // maximum carrying capacity per unit area
+		"SURVIVAL", 0.9, // survival probability
+		"INTERACTION_DISTANCE", 1.0,  // maximum interaction distance
+		"SIGMA", 1.0,  // maximum SD for dispersal
+		"BIAS", 0.0,   // maximum dispersal bias
+		"BIAS_MAP_FILE", "maps/one.png", // RGB = bias_x, bias_y, unused; mapped to [-1, 1]
+		"COVARIANCE_MAP_FILE", "maps/identity.png", // RGB = diagonal_x, diagonal_y, cov_xy; mapped to [-1, 1]
+		"HABITAT_MAP_FILE", "maps/one_bw.png", // greyscale = relative carrying capacity
+		"MAP_RESOLUTION", 20, // pixels per unit length
+		"NUMTICKS", 2000, // total number of ticks to run for
+		"OUTDIR", exists("OUTDIR") ? OUTDIR else "."
+		);
+	paramfile = defaults.getValue("OUTDIR") + "/" + "params.json";
+	if (fileExists(paramfile)) {
+		local_defaults = Dictionary(paste(readFile(paramfile), sep="\n"));
+		defaults.addKeysAndValuesFrom(local_defaults);
+	}
+	defaults.setValue("OUTPATH", defaults.getValue("OUTDIR") + "/sim_" + getSeed() + ".trees");
+	defaults.setValue("LOGPATH", defaults.getValue("OUTDIR") + "/sim_" + getSeed() + ".log");
+	
+	catn("-------------\n");
+	for (k in defaults.allKeys) {
+		if (!exists(k)) {
+			defineConstant(k, defaults.getValue(k));
+		} else {
+			defaults.setValue(k, executeLambda(paste(c(k, ";"), sep='')));
+		}
+		catn("  " + k + ": " + defaults.getValue(k));
+	}
+	catn("-------------\n");
+	defineGlobal("params", defaults);
+	
+	initializeMutationRate(0.0);
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	initializeGenomicElementType("g1", m1, 1.0);
+	initializeGenomicElement(g1, 0, 1e8-1);
+	initializeRecombinationRate(1e-8);
+	
+	// spatial interaction for local competition
+	initializeInteractionType("i1", "xy", reciprocal=T,
+		maxDistance = 3 * INTERACTION_DISTANCE);
+	i1.setInteractionFunction("n", 1.0/(2*PI*INTERACTION_DISTANCE^2), INTERACTION_DISTANCE);
+}
+
+1 early() {
+	community.rescheduleScriptBlock(s99, ticks=NUMTICKS);
+}
+
+1 early() {
+	bias_map = Image(BIAS_MAP_FILE);
+	covariance_map = Image(COVARIANCE_MAP_FILE);
+	habitat_map = Image(HABITAT_MAP_FILE);
+	if (any(covariance_map.floatR < 0.5) | (any(covariance_map.floatG < 0.5))) {
+		stop("Standard deviation values must be >=0, so R and G layers of " + COVARIANCE_MAP_FILE + " must be at least 128.");
+	}
+
+	defineConstant("WIDTH", habitat_map.width / MAP_RESOLUTION);
+	defineConstant("HEIGHT", habitat_map.height / MAP_RESOLUTION);
+	sim.addSubpop("p1", asInteger(K * WIDTH * HEIGHT));
+	p1.setSpatialBounds(c(0.0, 0.0, WIDTH, HEIGHT));
+	for (ind in p1.individuals) {
+		ind.setSpatialPosition(p1.pointUniform());
+	}
+	p1.defineSpatialMap("bias_x", "xy", BIAS * 2 * (bias_map.floatR - 0.5), interpolate=T, valueRange=c(-1.0, 1.0) * BIAS, colors=c("#000000", "#FF0000"));
+	p1.defineSpatialMap("bias_y", "xy", BIAS * 2 * (bias_map.floatG - 0.5), interpolate=T, valueRange=c(-1.0, 1.0) * BIAS, colors=c("#000000", "#00FF00"));
+	p1.defineSpatialMap("sigma_x", "xy", SIGMA * 2 * (covariance_map.floatR - 0.5), interpolate=T, valueRange=c(0.0, 1.0) * SIGMA, colors=c("#000000", "#FF0000"));
+	p1.defineSpatialMap("sigma_y", "xy", SIGMA * 2 * (covariance_map.floatG - 0.5), interpolate=T, valueRange=c(0.0, 1.0) * SIGMA, colors=c("#000000", "#00FF00"));
+	p1.defineSpatialMap("sigma_cor", "xy", SIGMA * 2 * (covariance_map.floatB - 0.5), interpolate=T, valueRange=c(-1.0, 1.0) * SIGMA, colors=c("#000000", "#0000FF"));
+	p1.defineSpatialMap("habitat", "xy", (K / (LAMBDA * SURVIVAL / (1 - SURVIVAL) - 1)) * habitat_map.floatK, interpolate=T, valueRange=c(0.0, 1.0) * K, colors=c("#000000", "#FFFFFF"));
+}
+
+// set up logging
+1 early() {
+	if (exists("OUTPATH")) {
+		dirs = strsplit(OUTPATH, "/");
+		for (k in seqLen(length(dirs) - 1)) {
+			d = paste(dirs[seqLen(k+1)], sep="/");
+			if (d != ".") if (!fileExists(d)) createDirectory(d);
+		}
+		log = community.createLogFile(OUTPATH + ".log");
+		log.setLogInterval(20);
+		log.addTick();
+		log.addCycleStage();
+		log.addPopulationSize();
+		log.addCustomColumn("total_density", "p1.individualCount / (WIDTH * HEIGHT);");
+		log.addMeanSDColumns("neighbor_density", "i1.localPopulationDensity(p1.individuals);");
+	}
+}
+
+reproduction() {
+	mate = i1.drawByStrength(individual, 1);  // single mating
+	if (size(mate) * individual.tag > 0) {
+		pos = individual.spatialPosition;
+		sigma_x = p1.spatialMapValue("sigma_x", pos);
+		sigma_y = p1.spatialMapValue("sigma_y", pos);
+		sigma_cor = p1.spatialMapValue("sigma_cor", pos);
+		bias = c(p1.spatialMapValue("bias_x", pos),
+			p1.spatialMapValue("bias_y", pos));
+		for (k in seqLen(individual.tag)) {
+			z = rnorm(2);
+			dxy = bias + c(sigma_x * z[0], sigma_y * (z[0] * sigma_cor + z[1] * sqrt(1 - sigma_cor^2)));
+			opos = pos + dxy;
+			offspring = p1.addCrossed(individual, mate);
+			offspring.setSpatialPosition(p1.pointReflected(opos));
+		}
+	}
+}
+
+early() { // survival probabilities
+	p1.individuals.fitnessScaling = SURVIVAL;
+}
+
+late() {
+	i1.evaluate(sim.subpopulations);
+	inds = p1.individuals;
+	// density-dependent fecundity
+	neighbor_density = i1.localPopulationDensity(inds);
+	habitat = p1.spatialMapValue("habitat", inds.spatialPosition);
+	inds.tag =
+		rpois(p1.individualCount, 0.001 + LAMBDA / (1 + neighbor_density / habitat));
+}
+
+late() {
+	if (p1.individualCount == 0) {
+		stop("The population has died out, in tick " + community.tick);
+	}
+}
+
+s99 2000 late() {
+	if (exists("OUTPATH")) sim.treeSeqOutput(OUTPATH, metadata=params);
+	community.outputUsage();
+	catn("Done.");
+	sim.simulationFinished();
+}
+
