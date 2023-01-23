@@ -3,6 +3,7 @@ import warnings
 import pyslim, tskit, msprime
 import numpy as np
 import pandas as pd
+import json
 from string import ascii_lowercase as letters
 
 import matplotlib.pyplot as plt
@@ -49,6 +50,11 @@ _alive_nodes = np.array(
             for n in ts.individual(i).nodes
 ])
 ts = ts.simplify(_alive_nodes, keep_input_roots=True)
+
+# write out full parameters
+params = ts.metadata['SLiM']['user_metadata']
+with open(os.path.join(basedir, "params.json"), 'w') as f:
+    f.write(json.dumps(params))
 
 ts = pyslim.recapitate(
         ts,

@@ -15,9 +15,9 @@ initialize() {
 		"BIAS", 0.0,   // maximum dispersal bias
 		"BIAS_MAP_FILE", "maps/one.png", // RGB = bias_x, bias_y, unused; mapped to [-1, 1]
 		"COVARIANCE_MAP_FILE", "maps/identity.png", // RGB = diagonal_x, diagonal_y, cov_xy; mapped to [-1, 1]
-		"HABITAT_MAP_FILE", "maps/one_bw.png", // greyscale = relative carrying capacity
+		"HABITAT_MAP_FILE", "maps/butte_height.png", // greyscale = relative carrying capacity
 		"MAP_RESOLUTION", 20, // pixels per unit length
-		"NUMTICKS", 2000, // total number of ticks to run for
+		"NUMTICKS", 200, // total number of ticks to run for
 		"OUTDIR", exists("OUTDIR") ? OUTDIR else "."
 		);
 	paramfile = defaults.getValue("OUTDIR") + "/" + "params.json";
@@ -25,8 +25,9 @@ initialize() {
 		local_defaults = Dictionary(paste(readFile(paramfile), sep="\n"));
 		defaults.addKeysAndValuesFrom(local_defaults);
 	}
-	defaults.setValue("OUTPATH", defaults.getValue("OUTDIR") + "/sim_" + getSeed() + ".trees");
-	defaults.setValue("LOGPATH", defaults.getValue("OUTDIR") + "/sim_" + getSeed() + ".log");
+	defaults.setValue("OUTBASE", defaults.getValue("OUTDIR") + "/out_" + getSeed());
+	defaults.setValue("OUTPATH", defaults.getValue("OUTBASE") + ".trees");
+	defaults.setValue("LOGPATH", defaults.getValue("OUTBASE") + ".log");
 	
 	catn("-------------\n");
 	for (k in defaults.allKeys) {
@@ -52,7 +53,7 @@ initialize() {
 	i1.setInteractionFunction("n", 1.0/(2*PI*INTERACTION_DISTANCE^2), INTERACTION_DISTANCE);
 }
 
-1 early() {
+1 first() {
 	community.rescheduleScriptBlock(s99, ticks=NUMTICKS);
 }
 
@@ -76,7 +77,9 @@ initialize() {
 	p1.defineSpatialMap("sigma_x", "xy", SIGMA * 2 * (covariance_map.floatR - 0.5), interpolate=T, valueRange=c(0.0, 1.0) * SIGMA, colors=c("#000000", "#FF0000"));
 	p1.defineSpatialMap("sigma_y", "xy", SIGMA * 2 * (covariance_map.floatG - 0.5), interpolate=T, valueRange=c(0.0, 1.0) * SIGMA, colors=c("#000000", "#00FF00"));
 	p1.defineSpatialMap("sigma_cor", "xy", SIGMA * 2 * (covariance_map.floatB - 0.5), interpolate=T, valueRange=c(-1.0, 1.0) * SIGMA, colors=c("#000000", "#0000FF"));
-	p1.defineSpatialMap("habitat", "xy", (K / (LAMBDA * SURVIVAL / (1 - SURVIVAL) - 1)) * habitat_map.floatK, interpolate=T, valueRange=c(0.0, 1.0) * K, colors=c("#000000", "#FFFFFF"));
+	kadj = (K / (LAMBDA * SURVIVAL / (1 - SURVIVAL) - 1));
+	p1.defineSpatialMap("habitat", "xy", kadj * habitat_map.floatK, interpolate=T, valueRange=c(0.0, 1.0) * kadj, colors=c("#000000", "#FFFFFF"));
+	i1.evaluate(sim.subpopulations);
 }
 
 // set up logging
@@ -112,6 +115,7 @@ reproduction() {
 			opos = pos + dxy;
 			offspring = p1.addCrossed(individual, mate);
 			offspring.setSpatialPosition(p1.pointReflected(opos));
+			offspring.tag = 0;
 		}
 	}
 }
@@ -143,3 +147,61 @@ s99 2000 late() {
 	sim.simulationFinished();
 }
 
+// Spatial map recording code
+
+1 early() {
+	defineConstant("spBURNIN", 10); // number of ticks to run before starting recording averages
+	defineConstant("spDIMS", asInteger(c(HEIGHT, WIDTH)/(1.0 * INTERACTION_DISTANCE))); // width, height of summary maps
+	defineGlobal("spDENSITY", matrix(rep(0.0, product(spDIMS)), spDIMS[0], spDIMS[1])); // map values of average pop density
+	defineGlobal("spADULT_DENOM", matrix(rep(1.0, product(spDIMS)), spDIMS[0], spDIMS[1])); // number of ticks where grid cell had adults PLUS ONE to avoid div by zero errors
+	defineGlobal("spCHILD_DENOM", matrix(rep(1.0, product(spDIMS)), spDIMS[0], spDIMS[1])); // number of ticks where grid cell had children PLUS ONE
+	defineGlobal("spFECUNDITY", matrix(rep(0.0, product(spDIMS)), spDIMS[0], spDIMS[1])); // map values of average fecundity
+	defineGlobal("spMORTALITY", matrix(rep(0.0, product(spDIMS)), spDIMS[0], spDIMS[1])); // map values of average death prob
+	defineGlobal("spESTABLISHMENT", matrix(rep(0.0, product(spDIMS)), spDIMS[0], spDIMS[1])); // map values of average establishment probability
+	end_tick = community.scriptBlocksWithIDs(99).start;
+	community.rescheduleScriptBlock(s101, start=spBURNIN, end=end_tick);
+	community.rescheduleScriptBlock(s102, ticks=end_tick);
+}
+
+s101 2: early() {
+	density = summarizeIndividuals(p1.individuals, spDIMS, p1.spatialBounds, "length(individuals);", perUnitArea=T);
+	num_adults = summarizeIndividuals(p1.individuals, spDIMS, p1.spatialBounds, "sum(individuals.age > 0);", perUnitArea=F);
+	total_num = summarizeIndividuals(p1.individuals, spDIMS, p1.spatialBounds, "length(individuals);", perUnitArea=F);
+	fecundity = summarizeIndividuals(p1.individuals, spDIMS, p1.spatialBounds, "sum(individuals.tag);", empty=0.0, perUnitArea=F);
+	fitness = summarizeIndividuals(p1.individuals, spDIMS, p1.spatialBounds, "sum(individuals.fitnessScaling);", empty=0.0, perUnitArea=F);
+	adult_fitness = summarizeIndividuals(p1.individuals, spDIMS, p1.spatialBounds, "sum(individuals.fitnessScaling[individuals.age > 0]);", empty=0.0, perUnitArea=F);
+	mortality = 1 - adult_fitness / num_adults;
+	mortality[(num_adults[] == 0)] = 0.0;
+	establishment = 1 - (fitness - adult_fitness) / (total_num - num_adults);
+	establishment[num_adults[] == total_num[]] = 0.0;
+	spADULT_DENOM[] = spADULT_DENOM[] + asFloat(num_adults > 0);
+	spCHILD_DENOM[] = spCHILD_DENOM[] + asFloat(num_adults < total_num);
+	n = community.tick - spBURNIN;
+	if (n > 0) {
+		density = spDENSITY * (1 - 1/n) + density / n;  // average over all time
+		// density = spDENSITY * (1 - 1/2000) + density / 2000;  // running, smoothed average
+		fecundity = spFECUNDITY * (1 - 1/spADULT_DENOM) + fecundity / spADULT_DENOM;
+		mortality = spMORTALITY * (1 - 1/spADULT_DENOM) + mortality / spADULT_DENOM;
+		establishment = spESTABLISHMENT * (1 - 1/spCHILD_DENOM) + establishment / spCHILD_DENOM;
+	}
+	spDENSITY[] = density;
+	spFECUNDITY[] = fecundity;
+	spMORTALITY[] = mortality;
+	spESTABLISHMENT[] = establishment;
+	p1.defineSpatialMap("spDensity", "xy", spDENSITY, interpolate=F, valueRange=c(0, max(0.001, density)), colors=c("#000000", "#FFFFFF"));
+	p1.defineSpatialMap("spFecundity", "xy", spFECUNDITY, interpolate=F, valueRange=c(0, max(0.001, fecundity)), colors=c("#000000", "#FFFFFF"));
+	p1.defineSpatialMap("spMortality", "xy", spMORTALITY, interpolate=F, valueRange=c(0, max(0.001, mortality)), colors=c("#000000", "#FFFFFF"));
+	p1.defineSpatialMap("spEstablishment", "xy", spESTABLISHMENT, interpolate=F, valueRange=c(0, max(0.001, establishment)), colors=c("#000000", "#FFFFFF"));
+}
+
+s102 2000 early() { // in early() to come before s99
+	// write out images
+	im = Image(spDENSITY/max(spDENSITY));
+	im.write(OUTBASE + ".density.png");
+	im = Image(spFECUNDITY/max(spFECUNDITY));
+	im.write(OUTBASE + ".fecundity.png");
+	im = Image(spMORTALITY/max(spMORTALITY));
+	im.write(OUTBASE + ".mortality.png");
+	im = Image(spESTABLISHMENT/max(spESTABLISHMENT));
+	im.write(OUTBASE + ".establishment.png");
+}
