@@ -17,7 +17,7 @@ try:
     os.mkdir(cv_dir + f'{k}_fold/')
 except OSError as error:
     print(error)
-            
+
 # load spatial and genetic data
 spatial_data = pd.read_csv("data/nebria/stats.csv", index_col=0)
 genetic_data = pd.read_csv("data/nebria/pairstats.csv", index_col=0)
@@ -32,7 +32,7 @@ def pickle_dump(filename, obj):
     print(f'saving file {filename}')
     with open(filename, 'wb') as file:
         pickle.dump(obj, file, protocol=pickle.HIGHEST_PROTOCOL)
-            
+
 def normalize_coords(longlats, lower, upper, ref_longlats):
         ncoords = np.zeros_like(longlats)
         longs, lats = longlats.T
@@ -53,7 +53,7 @@ def normalize_coords(longlats, lower, upper, ref_longlats):
         ncoords[:,0] = nlongs
         ncoords[:,1] = nlats
         return ncoords
-    
+
 # pairwise coordinates needed for kernel density estimate
 def coords_to_pairs(points):
     n = len(points)
@@ -73,7 +73,7 @@ def coords_to_pairs(points):
     ys[:,0] = x2
     ys[:,1] = y2
     return xs, ys
-    
+
 mesh = UnitSquareMesh(4,4)
 # mesh = Mesh('data/nebria/mesh.xml')
 V = FunctionSpace(mesh, 'CG', 1)
@@ -157,5 +157,5 @@ for train, test in kf.split(site_names):
     pickle_dump(cv_dir + f'{k}_fold/fold_{fold}_results.pkl', results)
     
     fold += 1
-    
+
 pickle_dump(cv_dir + f'{k}_fold/test_errors.pkl', test_errors)
