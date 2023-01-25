@@ -150,7 +150,6 @@ s99 2000 late() {
 // Spatial map recording code
 
 1 early() {
-	defineConstant("spBURNIN", 10); // number of ticks to run before starting recording averages
 	defineConstant("spDIMS", asInteger(c(HEIGHT, WIDTH)/(1.0 * INTERACTION_DISTANCE))); // width, height of summary maps
 	defineGlobal("spDENSITY", matrix(rep(0.0, product(spDIMS)), spDIMS[0], spDIMS[1])); // map values of average pop density
 	defineGlobal("spADULT_DENOM", matrix(rep(1.0, product(spDIMS)), spDIMS[0], spDIMS[1])); // number of ticks where grid cell had adults PLUS ONE to avoid div by zero errors
@@ -159,7 +158,6 @@ s99 2000 late() {
 	defineGlobal("spMORTALITY", matrix(rep(0.0, product(spDIMS)), spDIMS[0], spDIMS[1])); // map values of average death prob
 	defineGlobal("spESTABLISHMENT", matrix(rep(0.0, product(spDIMS)), spDIMS[0], spDIMS[1])); // map values of average establishment probability
 	end_tick = community.scriptBlocksWithIDs(99).start;
-	community.rescheduleScriptBlock(s101, start=spBURNIN, end=end_tick);
 	community.rescheduleScriptBlock(s102, ticks=end_tick);
 }
 
@@ -174,16 +172,17 @@ s101 2: early() {
 	mortality[(num_adults[] == 0)] = 0.0;
 	establishment = 1 - (fitness - adult_fitness) / (total_num - num_adults);
 	establishment[num_adults[] == total_num[]] = 0.0;
-	spADULT_DENOM[] = spADULT_DENOM[] + asFloat(num_adults > 0);
-	spCHILD_DENOM[] = spCHILD_DENOM[] + asFloat(num_adults < total_num);
-	n = community.tick - spBURNIN;
-	if (n > 0) {
-		density = spDENSITY * (1 - 1/n) + density / n;  // average over all time
-		// density = spDENSITY * (1 - 1/2000) + density / 2000;  // running, smoothed average
-		fecundity = spFECUNDITY * (1 - 1/spADULT_DENOM) + fecundity / spADULT_DENOM;
-		mortality = spMORTALITY * (1 - 1/spADULT_DENOM) + mortality / spADULT_DENOM;
-		establishment = spESTABLISHMENT * (1 - 1/spCHILD_DENOM) + establishment / spCHILD_DENOM;
-	}
+	new_adults = asFloat(num_adults > 0);
+	new_children = asFloat(num_adults < total_num);
+	spADULT_DENOM[] = spADULT_DENOM[] + new_adults;
+	spCHILD_DENOM[] = spCHILD_DENOM[] + new_children;
+
+	density = spDENSITY * (1 - 1/community.tick) + density / community.tick;  // average over all time
+	// density = spDENSITY * (1 - 1/2000) + density / 2000;  // running, smoothed average
+	fecundity = spFECUNDITY * (spADULT_DENOM - new_adults)/spADULT_DENOM + fecundity * new_adults / spADULT_DENOM;
+	mortality = spMORTALITY * (spADULT_DENOM - new_adults)/spADULT_DENOM + mortality * new_adults / spADULT_DENOM;
+	establishment = spESTABLISHMENT * (spCHILD_DENOM - new_children)/spCHILD_DENOM + establishment * new_children/ spCHILD_DENOM;
+
 	spDENSITY[] = density;
 	spFECUNDITY[] = fecundity;
 	spMORTALITY[] = mortality;
@@ -195,13 +194,28 @@ s101 2: early() {
 }
 
 s102 2000 early() { // in early() to come before s99
-	// write out images
-	im = Image(spDENSITY/max(spDENSITY));
-	im.write(OUTBASE + ".density.png");
-	im = Image(spFECUNDITY/max(spFECUNDITY));
-	im.write(OUTBASE + ".fecundity.png");
-	im = Image(spMORTALITY/max(spMORTALITY));
-	im.write(OUTBASE + ".mortality.png");
-	im = Image(spESTABLISHMENT/max(spESTABLISHMENT));
-	im.write(OUTBASE + ".establishment.png");
+	// write a CSV of everything
+	spfile = OUTBASE + ".spstats.csv";
+	writeFile(spfile, paste(
+		   c("x", "y", "density", "fecundity", "mortality", "establishment"),
+		   sep=","),
+		append=F
+	);
+	xcenters = seq(0, WIDTH, length=dim(spDENSITY)[0]);
+	ycenters = seq(0, HEIGHT, length=dim(spDENSITY)[1]);
+	for (i in seqLen(dim(spDENSITY)[0])) {
+		for (j in seqLen(dim(spDENSITY)[1])) {
+			writeFile(spfile, paste(
+				c(xcenters[i],
+				  ycenters[j],
+				  spDENSITY[i, j],
+				  spFECUNDITY[i, j],
+				  spMORTALITY[i, j],
+				  spESTABLISHMENT[i, j]
+				),
+				sep=","),
+				append=T
+			);
+		}
+	}
 }
