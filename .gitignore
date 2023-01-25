@@ -5,7 +5,6 @@ __pycache__
 .*.swp
 .coverage
 build
-*.ipynb
 examples
 *.png
 *.mp4
