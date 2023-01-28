@@ -213,6 +213,7 @@ class HittingTimes2D(Equation):
 
         plt.sca(axs[0])
         plot_ellipse_field(m[1], axs[0])
+        return axs
         
 
 class HittingTimes:

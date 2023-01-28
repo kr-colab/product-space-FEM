@@ -7,6 +7,7 @@ initialize() {
 	// The file params.slim will be read from the working directory, or
 	// from OUTDIR if this is defined on the command line.
 	defaults = Dictionary(
+		"seed", getSeed(),
 		"LAMBDA", 3.0, // birth rate
 		"K", 2.0,      // maximum carrying capacity per unit area
 		"SURVIVAL", 0.9, // survival probability
@@ -25,7 +26,7 @@ initialize() {
 		local_defaults = Dictionary(paste(readFile(paramfile), sep="\n"));
 		defaults.addKeysAndValuesFrom(local_defaults);
 	}
-	defaults.setValue("OUTBASE", defaults.getValue("OUTDIR") + "/out_" + getSeed());
+	defaults.setValue("OUTBASE", defaults.getValue("OUTDIR") + "/out_" + defaults.getValue("seed"));
 	defaults.setValue("OUTPATH", defaults.getValue("OUTBASE") + ".trees");
 	defaults.setValue("LOGPATH", defaults.getValue("OUTBASE") + ".log");
 	
@@ -40,6 +41,7 @@ initialize() {
 	}
 	catn("-------------\n");
 	defineGlobal("params", defaults);
+	setSeed(seed);
 	
 	initializeMutationRate(0.0);
 	initializeMutationType("m1", 0.5, "f", 0.0);
@@ -197,7 +199,7 @@ s102 2000 early() { // in early() to come before s99
 	// write a CSV of everything
 	spfile = OUTBASE + ".spstats.csv";
 	writeFile(spfile, paste(
-		   c("x", "y", "density", "fecundity", "mortality", "establishment"),
+		   c("x", "y", "density", "fecundity", "mortality", "establishment", "bias_x", "bias_y", "sigma_x", "sigma_y", "sigma_cor"),
 		   sep=","),
 		append=F
 	);
@@ -205,13 +207,19 @@ s102 2000 early() { // in early() to come before s99
 	ycenters = seq(0, HEIGHT, length=dim(spDENSITY)[1]);
 	for (i in seqLen(dim(spDENSITY)[0])) {
 		for (j in seqLen(dim(spDENSITY)[1])) {
+			pt = c(xcenters[i], ycenters[j]);
 			writeFile(spfile, paste(
 				c(xcenters[i],
 				  ycenters[j],
 				  spDENSITY[i, j],
 				  spFECUNDITY[i, j],
 				  spMORTALITY[i, j],
-				  spESTABLISHMENT[i, j]
+				  spESTABLISHMENT[i, j],
+				  p1.spatialMapValue("bias_x", pt),
+				  p1.spatialMapValue("bias_y", pt),
+				  p1.spatialMapValue("sigma_x", pt),
+				  p1.spatialMapValue("sigma_y", pt),
+				  p1.spatialMapValue("sigma_cor", pt)
 				),
 				sep=","),
 				append=T
