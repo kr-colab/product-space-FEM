@@ -44,6 +44,15 @@ height = floats_to_rgb(mountain_height(h, w), min=0, max=1)
 im = Image.fromarray(height)
 im.save("mountain_height.png", mode="L")
 
+# DOWNHILL: downhill on the gaussian density
+rgb = gaussian_slope(h, w)
+im = Image.fromarray(rgb)
+im.save("gaussian_bias.png")
+
+# SADDLE: saddlewise on the gaussian density
+rgb = saddle_slope(h, w)
+im = Image.fromarray(rgb)
+im.save("saddle_bias.png")
 
 # BUTTE: downhill on a bump function
 rgb = butte_slope(h, w)
@@ -54,6 +63,8 @@ rgb = butte_sigma(h, w)
 im = Image.fromarray(rgb)
 im.save("butte_sigma.png")
 
-height = floats_to_rgb(bump_height(h, w), min=0, max=1)
+x = bump_height(h, w)
+x /= np.max(x)
+height = floats_to_rgb(x, min=0, max=1)
 im = Image.fromarray(height)
 im.save("butte_height.png", mode="L")
