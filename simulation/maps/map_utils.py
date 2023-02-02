@@ -24,22 +24,40 @@ def rgb_to_floats(x, min=-1, max=1):
     return out
 
 
-def slope_layers(height):
+def slope_layers(height, f=None):
     """
     Given an (n + 1, m + 1)-layer ``height``, return the (n, m, 2) layer that has the
     x- and y-components of the slope of ``height``, as follows: if the heights surrounding
     a square are
-    > a b
     > c d
+    > a b
     then we compute the slope there as
     > ( (b - a)/2 + (d - c)/2, (c - a)/2 + (d - b)/2 )
     """
-    dx = np.diff(height, axis=1)
-    dy = np.diff(height, axis=0)
+    if f is None:
+        f = (1, 1)
+    dx = f[0] * np.diff(height, axis=1)
+    dy = f[1] * (-1) * np.diff(height, axis=0) # -1 because images have (0,0) in lower-left
     return np.stack([
             (dx[1:,:] + dx[:-1,:]) / 2,
             (dy[:,1:] + dy[:,:-1]) / 2
         ], axis=-1)
+
+
+def function_height(f, nrow, ncol, xrange, yrange, **kwargs):
+    """
+    Return a (nrow x ncol) numpy array with values given by
+    >  f(x[i], y[j])
+    where x ranges from xrange[0] to xrange[1].
+    and likewise for y, defaulting to both being in [0, 1).
+    """
+    xvals = np.linspace(xrange[0], xrange[1], nrow)
+    yvals = np.linspace(yrange[0], yrange[1], ncol)
+    x = np.repeat([xvals], ncol, axis=1)
+    y = np.repeat([yvals], nrow, axis=0).flatten()
+    out = f(x, y, **kwargs)
+    out.shape = (nrow, ncol)
+    return(out)
 
 
 def bump_height(nrow, ncol, width=None, center=None):
@@ -58,6 +76,27 @@ def bump_height(nrow, ncol, width=None, center=None):
     y = np.repeat([np.arange(ncol) - center[1]], nrow, axis=0).flatten()
     z = np.maximum(0.05, 1 - ((x/width[0]) ** 2 + (y/width[1]) ** 2))
     out = np.exp(- 1 / z)
+    out[out < 0] = 0.0
+    out.shape = (nrow, ncol)
+    return(out)
+
+
+def gaussian_height(nrow, ncol, width=None, center=None):
+    """
+    Return a (nrow x ncol) numpy array with values given by the gaussian density
+    >  exp(- r^2 / 2 ),
+    where
+    >  r = sqrt( (x/width[0])^2 + (y/width[1])^2 )
+    for -width[0] < x < width[0] and -width[1] , y < width[1].
+    """
+    if center is None:
+        center = np.array([(nrow - 1) / 2, (ncol - 1) / 2])
+    if width is None:
+        width = center
+    x = np.repeat([np.arange(nrow) - center[0]], ncol, axis=1)
+    y = np.repeat([np.arange(ncol) - center[1]], nrow, axis=0).flatten()
+    z = (x/width[0]) ** 2 + (y/width[1]) ** 2
+    out = np.exp(- z/2)
     out[out < 0] = 0.0
     out.shape = (nrow, ncol)
     return(out)
@@ -83,7 +122,7 @@ def mountain_height(nrow, ncol, slope=None, center=None):
     return(out)
 
 
-def make_slope_rgb(nrow, ncol, height_fn, **kwargs):
+def make_slope_rgb(nrow, ncol, height_fn, f=None, **kwargs):
     if 'center' in kwargs:
         center = kwargs['center']
         kwargs['center'] = [center[0] * (1 + 1/nrow), center[1] * (1 + 1/ncol)]
@@ -91,7 +130,7 @@ def make_slope_rgb(nrow, ncol, height_fn, **kwargs):
             nrow + 1,
             ncol + 1,
             **kwargs)
-    slope = slope_layers(height)
+    slope = slope_layers(height, f=f)
     out = np.concatenate([
             floats_to_rgb(slope / np.max(np.abs(slope)), min=-1, max=1),
             np.full((nrow, ncol, 1), 0, dtype='uint8'),
@@ -148,6 +187,30 @@ def mountain_sigma(nrow, ncol, slope=None, center=None):
     return make_sigma_rgb(
             nrow, ncol, mountain_height,
             slope=slope, center=center)
+
+def saddle_slope(nrow, ncol, width=None, center=None):
+    """
+    Make a (nrow, ncol, 4) RGBA array with layers corresponding to
+    (downslope bias x, downslope bias y, 0, 255)
+    on a "butte" (a bump function).
+    """
+    if center is None:
+        center = np.array([nrow / 2, ncol / 2])
+    return make_slope_rgb(
+            nrow, ncol, gaussian_height, f=(1, -1),
+            width=width, center=center)
+
+def gaussian_slope(nrow, ncol, width=None, center=None):
+    """
+    Make a (nrow, ncol, 4) RGBA array with layers corresponding to
+    (downslope bias x, downslope bias y, 0, 255)
+    on a "butte" (a bump function).
+    """
+    if center is None:
+        center = np.array([nrow / 2, ncol / 2])
+    return make_slope_rgb(
+            nrow, ncol, gaussian_height,
+            width=width, center=center)
 
 def butte_slope(nrow, ncol, width=None, center=None):
     """
