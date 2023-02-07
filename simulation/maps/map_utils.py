@@ -102,6 +102,25 @@ def gaussian_height(nrow, ncol, width=None, center=None):
     return(out)
 
 
+def saddle_height(nrow, ncol, width=None, center=None):
+    """
+    Return a (nrow x ncol) numpy array with values given by the gaussian density
+    >  exp( - ((x/width[0])^2 - (y/width[1])^2) / 2 ),
+    for -width[0] < x < width[0] and -width[1] , y < width[1].
+    """
+    if center is None:
+        center = np.array([(nrow - 1) / 2, (ncol - 1) / 2])
+    if width is None:
+        width = center
+    x = np.repeat([np.arange(nrow) - center[0]], ncol, axis=1)
+    y = np.repeat([np.arange(ncol) - center[1]], nrow, axis=0).flatten()
+    z = (x/width[0]) ** 2 - (y/width[1]) ** 2
+    out = np.exp(- z/2)
+    out[out < 0] = 0.0
+    out.shape = (nrow, ncol)
+    return(out)
+
+
 def mountain_height(nrow, ncol, slope=None, center=None):
     """
     Return a (nrow x ncol) numpy array that has value 1.0 at ``center``
@@ -192,12 +211,12 @@ def saddle_slope(nrow, ncol, width=None, center=None):
     """
     Make a (nrow, ncol, 4) RGBA array with layers corresponding to
     (downslope bias x, downslope bias y, 0, 255)
-    on a "butte" (a bump function).
+    on the saddle exp(-(x^2-y^2)/2)
     """
     if center is None:
         center = np.array([nrow / 2, ncol / 2])
     return make_slope_rgb(
-            nrow, ncol, gaussian_height, f=(1, -1),
+            nrow, ncol, saddle_height,
             width=width, center=center)
 
 def gaussian_slope(nrow, ncol, width=None, center=None):

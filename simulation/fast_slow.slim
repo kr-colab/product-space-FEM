@@ -1,3 +1,13 @@
+// At location x, where local density is n, carrying capacity is K(x) and 'habitat' is h(x),
+// fecundity is
+//   exp(-n/h(x))
+// and mortality is
+//   exp(-K(x)/h(x))
+// and recruitment is certain, so net reproduction is
+//   lambda * exp(-n/h(x)) - exp(-K(x)/h(x) + log(lambda))
+// and so equilibrium density should be about K(x)
+// (at least if lambda=1 so mortality can't be greater than 1)
+
 initialize() {
 	initializeSLiMModelType("nonWF");
 	initializeSLiMOptions(dimensionality="xy");
@@ -8,7 +18,8 @@ initialize() {
 	// from OUTDIR if this is defined on the command line.
 	defaults = Dictionary(
 		"seed", getSeed(),
-		"LAMBDA", 3.0, // birth rate
+		"LAMBDA", 4.0, // birth rate
+		"MIN_HABITAT", 1.0, "MAX_HABITAT", 2.0, // min/max values for habitat
 		"K", 2.0,      // maximum carrying capacity per unit area
 		"SURVIVAL", 0.9, // survival probability
 		"INTERACTION_DISTANCE", 1.0,  // maximum interaction distance
@@ -16,7 +27,8 @@ initialize() {
 		"BIAS", 0.0,   // maximum dispersal bias
 		"BIAS_MAP_FILE", "maps/one.png", // RGB = bias_x, bias_y, unused; mapped to [-1, 1]
 		"COVARIANCE_MAP_FILE", "maps/identity.png", // RGB = diagonal_x, diagonal_y, cov_xy; mapped to [-1, 1]
-		"HABITAT_MAP_FILE", "maps/butte_height.png", // greyscale = relative carrying capacity
+		"HABITAT_MAP_FILE", "maps/butte_height.png", // greyscale = affects fecundity
+		"DENSITY_MAP_FILE", "maps/one_bw.png", // greyscale = roughly equilibrium density
 		"MAP_RESOLUTION", 20, // pixels per unit length
 		"NUMTICKS", 200, // total number of ticks to run for
 		"OUTDIR", exists("OUTDIR") ? OUTDIR else "."
@@ -25,7 +37,7 @@ initialize() {
 	if (fileExists(paramfile)) {
 		local_defaults = Dictionary(paste(readFile(paramfile), sep="\n"));
 		// directories in params.json are relative to OUTDIR
-		for (k in c("BIAS_MAP_FILE", "COVARIANCE_MAP_FILE", "HABITAT_MAP_FILE")) {
+		for (k in c("BIAS_MAP_FILE", "COVARIANCE_MAP_FILE", "HABITAT_MAP_FILE", "DENSITY_MAP_FILE")) {
 			if (!isNULL(local_defaults.getValue(k)))
 				local_defaults.setValue(k, defaults.getValue("OUTDIR") + "/" + local_defaults.getValue(k));
 		}
@@ -68,6 +80,7 @@ initialize() {
 	bias_map = Image(BIAS_MAP_FILE);
 	covariance_map = Image(COVARIANCE_MAP_FILE);
 	habitat_map = Image(HABITAT_MAP_FILE);
+	density_map = Image(DENSITY_MAP_FILE);
 	if (any(covariance_map.floatR < 0.5) | (any(covariance_map.floatG < 0.5))) {
 		stop("Standard deviation values must be >=0, so R and G layers of " + COVARIANCE_MAP_FILE + " must be at least 128.");
 	}
@@ -84,8 +97,8 @@ initialize() {
 	p1.defineSpatialMap("sigma_x", "xy", SIGMA * 2 * (covariance_map.floatR - 0.5), interpolate=T, valueRange=c(0.0, 1.0) * SIGMA, colors=c("#000000", "#FF0000"));
 	p1.defineSpatialMap("sigma_y", "xy", SIGMA * 2 * (covariance_map.floatG - 0.5), interpolate=T, valueRange=c(0.0, 1.0) * SIGMA, colors=c("#000000", "#00FF00"));
 	p1.defineSpatialMap("sigma_cor", "xy", SIGMA * 2 * (covariance_map.floatB - 0.5), interpolate=T, valueRange=c(-1.0, 1.0) * SIGMA, colors=c("#000000", "#0000FF"));
-	kadj = (K / (LAMBDA * SURVIVAL / (1 - SURVIVAL) - 1));
-	p1.defineSpatialMap("habitat", "xy", kadj * habitat_map.floatK, interpolate=T, valueRange=c(0.0, 1.0) * kadj, colors=c("#000000", "#FFFFFF"));
+	p1.defineSpatialMap("habitat", "xy", MIN_HABITAT + (MAX_HABITAT - MIN_HABITAT) * habitat_map.floatK, interpolate=T, valueRange=MAX_HABITAT * c(0.0, 1.0), colors=c("#000000", "#FFFFFF"));
+	p1.defineSpatialMap("density", "xy", K * density_map.floatK, interpolate=T, valueRange=K * c(0.0, 1.0), colors=c("#000000", "#FFFFFF"));
 	i1.evaluate(sim.subpopulations);
 }
 
@@ -128,7 +141,10 @@ reproduction() {
 }
 
 early() { // survival probabilities
-	p1.individuals.fitnessScaling = SURVIVAL;
+	inds = p1.individuals;
+	habitat = p1.spatialMapValue("habitat", inds.spatialPosition);
+	density = p1.spatialMapValue("density", inds.spatialPosition);
+	inds.fitnessScaling = SURVIVAL * pmax(0.0, (1 - LAMBDA * exp(- density/habitat)));
 }
 
 late() {
@@ -136,9 +152,9 @@ late() {
 	inds = p1.individuals;
 	// density-dependent fecundity
 	neighbor_density = i1.localPopulationDensity(inds);
-	habitat = p1.spatialMapValue("habitat", inds.spatialPosition);
+	habitat = K * p1.spatialMapValue("habitat", inds.spatialPosition);
 	inds.tag =
-		rpois(p1.individualCount, 0.001 + LAMBDA / (1 + neighbor_density / habitat));
+		rpois(p1.individualCount, 0.001 + LAMBDA * exp(- neighbor_density / habitat));
 }
 
 late() {

@@ -54,6 +54,14 @@ rgb = saddle_slope(h, w)
 im = Image.fromarray(rgb)
 im.save("saddle_bias.png")
 
+x = saddle_height(h, w)
+x -= np.min(x)
+x /= np.max(x)
+print("saddle", np.min(x), np.max(x))
+height = floats_to_rgb(x, min=0, max=1)
+im = Image.fromarray(height)
+im.save("saddle_height.png", mode="L")
+
 # BUTTE: downhill on a bump function
 rgb = butte_slope(h, w)
 im = Image.fromarray(rgb)
