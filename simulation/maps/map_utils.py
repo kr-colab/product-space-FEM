@@ -3,12 +3,15 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 
+from PIL import Image
+from scipy import interpolate
+
 def floats_to_rgb(x, min=-1, max=1):
     """
     Translates floats in [min, max) to valid RBG integers, in [0, 255].
     Values are clamped to min and max.
     """
-    out = (255 * (x - min) / (max - min))
+    out = 256 * (x - min) / (max - min)
     out[out < 0] = 0
     out[out > 255] = 255
     assert np.min(out) >= 0 and np.max(out) <= 255
@@ -22,6 +25,34 @@ def rgb_to_floats(x, min=-1, max=1):
     """
     out = min + (max - min) * x.astype('float') / 255
     return out
+
+
+def xyz_to_array(x, y, z):
+    """
+    Given arrays of regularly-spaced x and y values, with z[i] corresponding to the value at
+    (x[i], y[i]), return the triple
+      xx, yy, zz
+    where zz is just z, reshaped, and xx and yy are such that zz[i, j] corresponds to (xx[i], yy[j]).
+    """
+    xx = np.unique(x)
+    yy = np.unique(y)
+    nr, nc = len(xx), len(yy)
+    zz = np.zeros((nr, nc))
+    ii = np.searchsorted(xx, x)
+    jj = np.searchsorted(yy, y)
+    for i, j, zval in zip(ii, jj, z):
+        zz[i, j] = zval
+    return xx, yy, zz
+
+
+def xyz_to_function(x, y, z, **kwargs):
+    """
+    Given arrays of regularly-spaced x and y values, with z[i] corresponding to the value at
+    (x[i], y[i]), return the function that linearly interpolates the values of z to other
+    values of x and y. Will extrapolate outside of the given domain.
+    """
+    xx, yy, zz = xyz_to_array(x, y, z)
+    return interpolate.RegularGridInterpolator((xx, yy), zz, **kwargs, fill_value=None)
 
 
 def slope_layers(height, f=None):
