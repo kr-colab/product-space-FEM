@@ -8,3 +8,4 @@ build
 examples
 *.png
 *.mp4
+dist/

@@ -1,2 +1,4 @@
 *.log
 *.trees
+*.spstats.csv
+*_stats/
