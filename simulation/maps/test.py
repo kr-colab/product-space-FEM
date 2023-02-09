@@ -27,16 +27,16 @@ class TestConversion:
 
     def test_xyz_to_array(self):
         nr, nc = 19, 12
-        xvals = np.linspace(2, 30, nr)
-        yvals = np.linspace(-4, 10, nc)
+        xvals = np.linspace(2, 30, nc)
+        yvals = np.linspace(-4, 10, nr)
         x = np.empty(nr * nc)
         y = np.empty(nr * nc)
         z = np.empty(nr * nc)
         k = 0
         for i in range(nr):
             for j in range(nc):
-                x[k] = xvals[i]
-                y[k] = yvals[j]
+                y[k] = yvals[i]
+                x[k] = xvals[j]
                 z[k] = self.f1(x[k], y[k])
                 k += 1
 
@@ -47,7 +47,7 @@ class TestConversion:
         assert zz.shape[1] == nc
         for i in range(nr):
             for j in range(nc):
-                assert zz[i, j] == self.f1(xx[i], yy[j])
+                assert zz[i, j] == self.f1(xx[j], yy[i])
 
         rng = np.random.default_rng(123)
         pi = rng.permutation(nr * nc)
@@ -61,6 +61,25 @@ class TestConversion:
         assert zz.shape[1] == nc
         for i in range(nr):
             for j in range(nc):
-                assert zz[i, j] == self.f1(xx[i], yy[j])
+                assert zz[i, j] == self.f1(xx[j], yy[i])
 
+    def test_xyz_to_function(self):
+        nr, nc = 19, 12
+        xvals = np.linspace(2, 30, nr)
+        yvals = np.linspace(-4, 10, nc)
+        x = np.empty(nr * nc)
+        y = np.empty(nr * nc)
+        z = np.empty(nr * nc)
+        k = 0
+        for i in range(nr):
+            for j in range(nc):
+                x[k] = xvals[i]
+                y[k] = yvals[j]
+                z[k] = self.f1(x[k], y[k])
+                k += 1
 
+        ff = map_utils.xyz_to_function(x, y, z)
+        for i in range(nr):
+            for j in range(nc):
+                xy = (xvals[i], yvals[j])
+                assert np.isclose(ff(xy), self.f1(*xy))

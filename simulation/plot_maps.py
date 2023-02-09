@@ -2,6 +2,7 @@ import sys, os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import maps
 
 if not len(sys.argv) >= 2:
     print(f"""
@@ -18,19 +19,16 @@ for sp_file in sys.argv[1:]:
     outfile = f"{basename}.spstats.png"
 
     sp = pd.read_csv(sp_file)
-    xvals = np.unique(sp['x'])
-    yvals = np.unique(sp['y'])
-    nr, nc = len(xvals), len(yvals)
 
     def plot_heatmap(ax, n):
-        X = sp['x'].to_numpy().reshape((nr, nc))
-        Y = sp['y'].to_numpy().reshape((nr, nc))
-        Z = sp[n].to_numpy().reshape((nr, nc))
+        xvals, yvals, Z = maps.xyz_to_array(sp['x'], sp['y'], sp[n])
+        X = sp['x'].to_numpy().reshape(Z.shape)
+        Y = sp['y'].to_numpy().reshape(Z.shape)
         # return ax.pcolormesh(X, Y, Z)
         return ax.contourf(X, Y, Z)
 
     plot_cols = ["density", "fecundity", "mortality", "establishment"]
-    fig, axes = plt.subplots(2, 2, figsize=(8, 8))
+    fig, axes = plt.subplots(2, 2, figsize=(15, 8))
     for (ax, n) in zip(axes.flatten(), plot_cols):
         im = plot_heatmap(ax, n)
         fig.colorbar(im, ax=ax)

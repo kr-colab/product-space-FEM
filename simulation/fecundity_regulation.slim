@@ -219,19 +219,22 @@ s102 2000 early() { // in early() to come before s99
 		   sep=","),
 		append=F
 	);
-	xcenters = seq(0, WIDTH, length=dim(spDENSITY)[0]);
-	ycenters = seq(0, HEIGHT, length=dim(spDENSITY)[1]);
+	ycenters = seq(0, HEIGHT, length=dim(spDENSITY)[0]);
+	xcenters = seq(0, WIDTH, length=dim(spDENSITY)[1]);
 	for (i in seqLen(dim(spDENSITY)[0])) {
 		for (j in seqLen(dim(spDENSITY)[1])) {
-			pt = c(xcenters[i], ycenters[j]);
+			// we will get values out of the maps using points
+			// rather than the matrices of values to avoid errors
+			// having to do with orientation
+			pt = c(xcenters[j], ycenters[i]);
 			writeFile(spfile, paste(
-				c(xcenters[i],
-				  ycenters[j],
-				  spAGE[i, j],
-				  spDENSITY[i, j],
-				  spFECUNDITY[i, j],
-				  spMORTALITY[i, j],
-				  spESTABLISHMENT[i, j],
+				c(xcenters[j],
+				  ycenters[i],
+				  p1.spatialMapValue("spDensity", pt),
+				  p1.spatialMapValue("spAge", pt),
+				  p1.spatialMapValue("spFecundity", pt),
+				  p1.spatialMapValue("spMortality", pt),
+				  p1.spatialMapValue("spEstablishment", pt),
 				  p1.spatialMapValue("bias_x", pt),
 				  p1.spatialMapValue("bias_y", pt),
 				  p1.spatialMapValue("sigma_x", pt),

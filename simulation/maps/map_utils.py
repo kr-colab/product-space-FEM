@@ -36,10 +36,10 @@ def xyz_to_array(x, y, z):
     """
     xx = np.unique(x)
     yy = np.unique(y)
-    nr, nc = len(xx), len(yy)
+    nr, nc = len(yy), len(xx)
     zz = np.zeros((nr, nc))
-    ii = np.searchsorted(xx, x)
-    jj = np.searchsorted(yy, y)
+    ii = np.searchsorted(yy, y)
+    jj = np.searchsorted(xx, x)
     for i, j, zval in zip(ii, jj, z):
         zz[i, j] = zval
     return xx, yy, zz
@@ -52,7 +52,7 @@ def xyz_to_function(x, y, z, **kwargs):
     values of x and y. Will extrapolate outside of the given domain.
     """
     xx, yy, zz = xyz_to_array(x, y, z)
-    return interpolate.RegularGridInterpolator((xx, yy), zz, **kwargs, fill_value=None)
+    return interpolate.RegularGridInterpolator((xx, yy), zz.T, **kwargs, fill_value=None)
 
 
 def slope_layers(height, f=None):
