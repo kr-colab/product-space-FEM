@@ -11,6 +11,7 @@ def floats_to_rgb(x, min=-1, max=1):
     Translates floats in [min, max) to valid RBG integers, in [0, 255].
     Values are clamped to min and max.
     """
+    x = np.array(x)
     out = 256 * (x - min) / (max - min)
     out[out < 0] = 0
     out[out > 255] = 255
@@ -23,7 +24,8 @@ def rgb_to_floats(x, min=-1, max=1):
     The "inverse" of floats_to_rgb.
     Note the denominator is 255, mirroring SLiM.
     """
-    out = min + (max - min) * x.astype('float') / 255
+    x = np.array(x, dtype='float')
+    out = min + (max - min) * x / 255
     return out
 
 

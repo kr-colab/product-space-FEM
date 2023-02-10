@@ -9,10 +9,12 @@ from string import ascii_lowercase as letters
 import matplotlib.pyplot as plt
 
 
-if not len(sys.argv) in (2, 3):
+if not len(sys.argv) in (3, 4):
     print(f"""
     Usage:
-        python {sys.argv[0]} <input>.trees [seed]
+        python {sys.argv[0]} <input>.trees num_samples [seed]
+    where
+    - num_samples is the number of sampled diploids
     """)
     sys.exit()
 
@@ -20,7 +22,9 @@ ts_file = sys.argv[1]
 if not os.path.isfile(ts_file):
     raise ValueError(f"File {ts_file} does not exist.")
 
-if len(sys.argv) < 3:
+num_samples = int(sys.argv[2])
+
+if len(sys.argv) < 4:
     rng = np.random.default_rng()
     seed = rng.integers(1000000)
 
@@ -32,9 +36,8 @@ if not os.path.exists(basedir):
     os.makedirs(basedir)
 repname = os.path.join(basedir, f"rep{seed}")
 
-# parameters
+# other parameters
 mut_rate = 2e-8  # mutation rate
-num_samples = 20  # number of sampled diploids
 ancestral_Ne = 1e3  # ancestral pop size
 
 print(
