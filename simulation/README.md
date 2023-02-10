@@ -27,8 +27,8 @@ e.g., `mkdir test; cp example_params.json test/params.json; cd test; SLiMgui ../
 To **run a test** (e.g., `bias_bump`):
 ```
 slim -d 'OUTDIR="bias_bump"' fecundity_regulation.slim
-python3 compute_stats.py bias_bump/*.trees  # or put in trees file if there's more than one
-python3 plot_maps.py bias_bump/*.spatstats.csv  # again
+python3 compute_stats.py bias_bump/<base>.trees 20
+python3 plot_maps.py bias_bump/<base>.spatstats.csv
 <TODO write inference script>
 ```
 
