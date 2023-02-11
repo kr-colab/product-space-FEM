@@ -1,4 +1,4 @@
-name: anaconda-client-env
+name: psf
 channels:
   - conda-forge
   - anaconda
@@ -10,3 +10,4 @@ dependencies:
   - scipy
   - pandas>=1.5.3
   - mshr
+  - json

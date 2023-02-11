@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 import inference
 
@@ -142,6 +143,8 @@ class TestSpatialDivergenceData:
                     assert 1 == int(n in train.spatial_data.index) + int(n in test.spatial_data.index)
             assert np.all(is_test == 1)
 
+    @pytest.mark.filterwarnings("ignore:overflow")
+    @pytest.mark.filterwarnings("ignore:invalid value encountered")
     def test_choose_epsilons(self):
         sdd = inference.SpatialDivergenceData(*self.get_example(n=30, seed=123))
         opt = sdd.choose_epsilons(k=10, num_guesses=50)
