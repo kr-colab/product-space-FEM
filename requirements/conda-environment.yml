@@ -1,0 +1,11 @@
+name: anaconda-client-env
+channels:
+  - conda-forge
+  - anaconda
+  - defaults
+dependencies:
+  - fenics
+  - matplotlib
+  - numpy
+  - scipy
+  - pandas
