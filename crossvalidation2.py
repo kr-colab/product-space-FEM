@@ -3,11 +3,18 @@ import os, sys, pickle
 import numpy as np
 import pandas as pd
 import product_fem as pf
-from sklearn.model_selection import KFold
 from fenics import UnitSquareMesh, Mesh, FunctionSpace
 
 import inference
 
+usage = f"""
+Usage:
+    {sys.argv[0]} (number of folds) (regularization penalty)
+"""
+
+if len(sys.argv) != 3:
+    print(usage)
+    sys.exit()
 
 k = int(sys.argv[1]) # number of xval folds
 penalty = float(sys.argv[2]) # regularization penalty
@@ -24,9 +31,6 @@ except OSError as error:
 spatial_data = pd.read_csv("data/nebria/stats.csv", index_col=0).rename(
         columns={"site_name": "name", "long": "x", "lat": "y"}
 )
-spatial_data['name'] = [
-        sites[n] for n in spatial_data['site_name']
-]
 genetic_data = pd.read_csv("data/nebria/pairstats.csv", index_col=0).rename(
         columns={"loc1": "name1", "loc2": "name2", "dxy": "divergence"}
 )
