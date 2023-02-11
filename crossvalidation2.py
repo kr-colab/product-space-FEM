@@ -33,6 +33,7 @@ genetic_data = pd.read_csv("data/nebria/pairstats.csv", index_col=0).rename(
 data = inference.SpatialDivergenceData(spatial_data, genetic_data)
 data.normalise(min_xy=0.2, max_xy=0.8)
 bdry_params = data.choose_epsilons()
+boundary = data.boundary_fn(eps0=bdry_params['eps0'], eps1=bdry_params['eps1'])
 
 mesh = UnitSquareMesh(4,4)
 # mesh = Mesh('data/nebria/mesh.xml')
