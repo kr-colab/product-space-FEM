@@ -84,10 +84,10 @@ lll = [letters[k] for k in range(len(letters))]
 names = ["".join([a, b, c]) for a in rng.permuted(lll) for b in rng.permuted(lll) for c in rng.permuted(lll)][:len(samples)]
 
 locs = pd.DataFrame({
-    "loc" : names,
+    "name" : names,
     "x" : ts.individual_locations[samples, 0],
     "y" : ts.individual_locations[samples, 1],
-}).set_index("loc")
+}).set_index("name")
 
 # heterozygosity
 locs["het"] = ts.diversity(sample_nodes, mode='site')
@@ -102,16 +102,16 @@ pairs = pd.DataFrame(
             np.array(
                 [[a, b] for a in locs.index for b in locs.index if a <= b]
             ),
-            columns=["loc1", "loc2"],
+            columns=["name1", "name2"],
 )
-pairs["dxy"] = np.nan
+pairs["divergence"] = np.nan
 
 plist = []
 nlist = list(locs.index)
-for a, b in zip(pairs["loc1"], pairs["loc2"]):
+for a, b in zip(pairs["name1"], pairs["name2"]):
     plist.append((nlist.index(a), nlist.index(b)))
 
-pairs["dxy"] = ts.divergence(
+pairs["divergence"] = ts.divergence(
         sample_sets = sample_nodes,
         indexes = plist,
         mode = 'site',
@@ -121,8 +121,8 @@ pairs["dxy"] = ts.divergence(
 pairs.to_csv(f"{repname}.pairstats.csv")
 
 # make plot of IBD
-i1 = np.array([nlist.index(i) for i in pairs['loc1']])
-i2 = np.array([nlist.index(i) for i in pairs['loc2']])
+i1 = np.array([nlist.index(i) for i in pairs['name1']])
+i2 = np.array([nlist.index(i) for i in pairs['name2']])
 pairs['dist'] = np.sqrt(
     (ts.individual_locations[i1, 0] - ts.individual_locations[i2, 0])**2
     + 
@@ -130,7 +130,7 @@ pairs['dist'] = np.sqrt(
 )
 
 fig, ax = plt.subplots(figsize=(10, 6))
-ax.scatter(pairs['dist'], pairs['dxy'])
+ax.scatter(pairs['dist'], pairs['divergence'])
 ax.set_xlabel("geographic distance")
 ax.set_ylabel("genetic distance")
 ax.set_title(repname)
