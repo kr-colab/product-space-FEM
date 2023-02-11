@@ -2,30 +2,31 @@
 import os, sys, pickle
 import numpy as np
 import pandas as pd
+import json
+
 import product_fem as pf
 from fenics import UnitSquareMesh, Mesh, FunctionSpace
-
 import inference
 
 usage = f"""
 Usage:
-    {sys.argv[0]} (number of folds) (regularization penalty)
+    {sys.argv[0]} (json file with parameters in)
+and the json file should include:
+    "spatial_data", "genetic_data" : file paths
+    "mesh" : either an XML file or a [width, height] of integers
+    "folds": number of folds
+    "regularization": {{ "l2": [a, b], "smoothing": [c, d] }}
+    "boundary": {{ "epsilon": x, "eps0": y, "eps1": z }}
 """
 
-if len(sys.argv) != 3:
+if len(sys.argv) != 2:
     print(usage)
     sys.exit()
 
-k = int(sys.argv[1]) # number of xval folds
-penalty = float(sys.argv[2]) # regularization penalty
-
-cv_dir = f'data/nebria/crossval_penalty_{penalty}/'
-
-try:
-    os.mkdir(cv_dir)
-    os.mkdir(cv_dir + f'{k}_fold/')
-except OSError as error:
-    print(error)
+paramsfile = sys.argv[1]
+cv_dir = os.path.dirname(paramsfile)
+with open(paramsfile, 'r') as f:
+    params = json.load(f)
 
 # load spatial and genetic data
 spatial_data = pd.read_csv("data/nebria/stats.csv", index_col=0).rename(
@@ -36,32 +37,45 @@ genetic_data = pd.read_csv("data/nebria/pairstats.csv", index_col=0).rename(
 )
 data = inference.SpatialDivergenceData(spatial_data, genetic_data)
 data.normalise(min_xy=0.2, max_xy=0.8)
-bdry_params = data.choose_epsilons()
-boundary = data.boundary_fn(eps0=bdry_params['eps0'], eps1=bdry_params['eps1'])
 
-mesh = UnitSquareMesh(4,4)
-# mesh = Mesh('data/nebria/mesh.xml')
+# optionally determine the boundary parameters
+if params['boundary'] is None:
+    bdry_params = data.choose_epsilons()
+    params['boundary'] = {
+            "epsilon": bdry_params['eps0'],
+            "eps0": bdry_params['eps0'],
+            "eps1": bdry_params['eps1']
+    }
+
+boundary = data.boundary_fn(eps0=params['boundary']['eps0'], eps1=params['boundary']['eps1'])
+
+if len(params['mesh']) == 1 and isinstance(params['mesh'], str):
+    mesh = Mesh(params['mesh'])
+elif len(params['mesh']) == 2:
+    mesh = UnitSquareMesh(*params['mesh'])
+else:
+    print(f"mesh must be an xml file name or (width, height), got {params['mesh']}")
+    sys.exit()
 V = FunctionSpace(mesh, 'CG', 1)
 W = pf.ProductFunctionSpace(V)
 
-for fold, (train, test) in enumerate(data.split(k=k)):
-    eqn = pf.HittingTimes(W, boundary, epsilon=0.03)
+for fold, (train, test) in enumerate(data.split(k=params["folds"])):
+    eqn = pf.HittingTimes(W, boundary, epsilon=params['boundary']['epsilon'])
     control = eqn.control
     # loss functionals
-    reg = {'l2': [100*penalty, 100*penalty], 'smoothing': [penalty, penalty]}
     train_sd = pf.SpatialData(
             train.genetic_data['divergence'].to_numpy(),
             train.spatial_data.loc[:,('x', 'y')].to_numpy(),
             W,
     )
-    train_loss = pf.LossFunctional(train_sd, control, reg)
+    train_loss = pf.LossFunctional(train_sd, control, params['regularization'])
     
     test_sd = pf.SpatialData(
             test.genetic_data['divergence'].to_numpy(),
             test.spatial_data.loc[:,('x', 'y')].to_numpy(),
             W,
     )
-    test_loss = pf.LossFunctional(test_sd, control, reg)
+    test_loss = pf.LossFunctional(test_sd, control, params['regularization'])
     
     invp = pf.InverseProblem(eqn, train_loss)
     options = {'ftol': 1e-8, 
@@ -78,8 +92,8 @@ for fold, (train, test) in enumerate(data.split(k=k)):
     test_errors[fold] = test_loss.l2_error(u_hat)
     
     # pickle results
-    pickle_dump(cv_dir + f'{k}_fold/fold_{fold}_m_hats.pkl', m_hats)
-    pickle_dump(cv_dir + f'{k}_fold/fold_{fold}_losses.pkl', losses)
-    pickle_dump(cv_dir + f'{k}_fold/fold_{fold}_results.pkl', results)
+    pickle_dump(cv_dir + f'{params["folds"]}_fold/fold_{fold}_m_hats.pkl', m_hats)
+    pickle_dump(cv_dir + f'{params["folds"]}_fold/fold_{fold}_losses.pkl', losses)
+    pickle_dump(cv_dir + f'{params["folds"]}_fold/fold_{fold}_results.pkl', results)
 
-pickle_dump(cv_dir + f'{k}_fold/test_errors.pkl', test_errors)
+pickle_dump(cv_dir + f'{params["folds"]}_fold/test_errors.pkl', test_errors)

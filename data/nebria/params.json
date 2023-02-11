@@ -1,0 +1,15 @@
+{
+    "spatial_data": "stats.csv",
+    "genetic_data": "pairstats.csv",
+    "mesh": [4, 4],
+    "folds": 5,
+    "regularization": {
+        "l2": [100, 100],
+        "smoothing": [1, 1]
+    },
+    "boundary": {
+        "epsilon": 0.03,
+        "eps0": 0.05,
+        "eps1": 0.1
+    }
+}
