@@ -29,10 +29,10 @@ with open(paramsfile, 'r') as f:
     params = json.load(f)
 
 # load spatial and genetic data
-spatial_data = pd.read_csv("data/nebria/stats.csv", index_col=0).rename(
+spatial_data = pd.read_csv(os.path.join(cv_dir, params['spatial_data']), index_col=0).rename(
         columns={"site_name": "name", "long": "x", "lat": "y"}
 )
-genetic_data = pd.read_csv("data/nebria/pairstats.csv", index_col=0).rename(
+genetic_data = pd.read_csv(os.path.join(cv_dir, params['genetic_data']), index_col=0).rename(
         columns={"loc1": "name1", "loc2": "name2", "dxy": "divergence"}
 )
 data = inference.SpatialDivergenceData(spatial_data, genetic_data)
