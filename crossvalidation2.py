@@ -17,22 +17,41 @@ and the json file should include:
     "folds": number of folds
     "regularization": {{ "l2": [a, b], "smoothing": [c, d] }}
     "boundary": {{ "epsilon": x, "eps0": y, "eps1": z }}
+    "method": method for optimizing (default: BFGS)
+    "options": additional options to the optimizer
 """
 
 if len(sys.argv) != 2:
     print(usage)
     sys.exit()
 
+# defaults
+params = {
+    "method": "BFGS",
+    "options": {
+        'gtol': 1e-8,
+        'xrtol': 1e-8,
+        'maxiter': 100
+    },
+    "boundary": None,
+}
+
 paramsfile = sys.argv[1]
-cv_dir = os.path.dirname(paramsfile)
+outdir = os.path.dirname(paramsfile)
 with open(paramsfile, 'r') as f:
-    params = json.load(f)
+    file_params = json.load(f)
+params.update(file_params)
+
+def pickle_dump(filename, obj):
+    print(f'saving file {filename}')
+    with open(filename, 'wb') as file:
+        pickle.dump(obj, file, protocol=pickle.HIGHEST_PROTOCOL)
 
 # load spatial and genetic data
-spatial_data = pd.read_csv(os.path.join(cv_dir, params['spatial_data']), index_col=0).rename(
+spatial_data = pd.read_csv(os.path.join(outdir, params['spatial_data']), index_col=0).rename(
         columns={"site_name": "name", "long": "x", "lat": "y"}
 )
-genetic_data = pd.read_csv(os.path.join(cv_dir, params['genetic_data']), index_col=0).rename(
+genetic_data = pd.read_csv(os.path.join(outdir, params['genetic_data']), index_col=0).rename(
         columns={"loc1": "name1", "loc2": "name2", "dxy": "divergence"}
 )
 data = inference.SpatialDivergenceData(spatial_data, genetic_data)
@@ -59,7 +78,10 @@ else:
 V = FunctionSpace(mesh, 'CG', 1)
 W = pf.ProductFunctionSpace(V)
 
+test_errors = []
 for fold, (train, test) in enumerate(data.split(k=params["folds"])):
+    print(f"Doing fold {fold} with {params['method']}...")
+    print("\t".join(["", "total_loss", "error", "regularization", "smoothing"]))
     eqn = pf.HittingTimes(W, boundary, epsilon=params['boundary']['epsilon'])
     control = eqn.control
     # loss functionals
@@ -78,22 +100,21 @@ for fold, (train, test) in enumerate(data.split(k=params["folds"])):
     test_loss = pf.LossFunctional(test_sd, control, params['regularization'])
     
     invp = pf.InverseProblem(eqn, train_loss)
-    options = {'ftol': 1e-8, 
-               'gtol': 1e-8, 
-               'maxcor': 15,
-               'maxiter': 100}
-    m_hats, losses, results = invp.optimize(control, 
-                                            method='L-BFGS-B', 
-                                            options=options)
+    m_hats, losses, results = invp.optimize(
+            control, 
+            method=params['method'],
+            options=params['options'],
+    )
     
     # test set error
     control.update(m_hats[-1])
     u_hat = eqn.solve()
-    test_errors[fold] = test_loss.l2_error(u_hat)
+    test_errors.append(test_loss.l2_error(u_hat))
+    print(f"Done: test error {test_errors[-1]}")
     
     # pickle results
-    pickle_dump(cv_dir + f'{params["folds"]}_fold/fold_{fold}_m_hats.pkl', m_hats)
-    pickle_dump(cv_dir + f'{params["folds"]}_fold/fold_{fold}_losses.pkl', losses)
-    pickle_dump(cv_dir + f'{params["folds"]}_fold/fold_{fold}_results.pkl', results)
+    pickle_dump(os.path.join(outdir, f'fold_{fold}_m_hats.pkl'), m_hats)
+    pickle_dump(os.path.join(outdir, f'fold_{fold}_losses.pkl'), losses)
+    pickle_dump(os.path.join(outdir, f'fold_{fold}_results.pkl'), results)
 
-pickle_dump(cv_dir + f'{params["folds"]}_fold/test_errors.pkl', test_errors)
+pickle_dump(os.path.join(outdir, f'test_errors.pkl'), np.array(test_errors))
