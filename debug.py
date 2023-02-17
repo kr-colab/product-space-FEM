@@ -42,18 +42,15 @@ train_sd = pf.SpatialData(
 train_loss = pf.LossFunctional(train_sd, control, {"l2": [100, 100.], "smoothing": [1, 1.]})
 print("inv problem")
 invp = pf.InverseProblem(eqn, train_loss)
-options = {'ftol': 1e-8, 
-           'gtol': 1e-8, 
-           'maxcor': 15,
+options = {'gtol': 1e-8,
+           'xrtol': 1e-8,
            'maxiter': 100}
 print("optimize")
 m_hats, losses, results = invp.optimize(control, 
-                                        method='L-BFGS-B', 
+                                        method='BFGS', 
                                         options=options)
-
 print("solve")
 control.update(m_hats[-1])
 u_hat = eqn.solve()
-test_errors[fold] = test_loss.l2_error(u_hat)
 print("DONE")
 

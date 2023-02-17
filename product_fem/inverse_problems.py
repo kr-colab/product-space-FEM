@@ -122,7 +122,7 @@ class InverseProblem:
         grad = self.compute_gradient(m, u)
         return loss, grad
     
-    def optimize(self, m0, method='L-BFGS-B', *args, **kwargs):
+    def optimize(self, m0, method='BFGS', *args, **kwargs):
         allvecs = [m0.array()]
         
         u0 = self.equation.solve(m0)
