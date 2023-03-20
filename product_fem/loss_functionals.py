@@ -95,7 +95,6 @@ class L2ErrorSum:
     def __init__(self, data):
         self.data = data.data
         self.W = data.W
-        self.sample_points = data.points
         self.eval_matrix = data.eval_matrix
     
     def __call__(self, u):

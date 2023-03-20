@@ -122,7 +122,9 @@ class TestFunctionals:
         V = FunctionSpace(mesh, 'CG', 1)
         W = ProductFunctionSpace(V)
         
-        data = SpatialData(data, points, W)
+        xy0 = points[[i for i in range(points.shape[0]) for j in range(points.shape[0]) if i <= j], :]
+        xy1 = points[[j for i in range(points.shape[0]) for j in range(points.shape[0]) if i <= j], :]
+        data = SpatialData(data=data, xy0=xy0, xy1=xy1, W=W)
         J = L2Error(data)
         
         def u_func(x, y):

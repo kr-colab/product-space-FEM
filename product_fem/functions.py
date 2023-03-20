@@ -238,11 +238,23 @@ class ProductBasisFunction(ProductFunction):
 
 
 class SpatialData:
-    """Contains spatial sampling locations and measurements"""
+    """
+    Contains spatial sampling locations and measurements.
 
-    def __init__(self, data, points, W):
+    `xy0`, `xy1`: should be n x d arrays of spatial locations
+    `data`: should be an n x 1 array of values, so that
+        `data[i]` correponds to the pair of points `xy0[i], xy1[i]`.
+    """
+
+    def __init__(self, data, xy0, xy1, W):
+        if xy0.shape[0] != xy1.shape[0] or len(data) != len(xy0) or xy0.shape[1] != xy1.shape[1]:
+            raise ValueError(
+                    "xy0 and xy1 must have the same shape, and each must "
+                    "have the same length as data."
+            )
         self.data = data
-        self.points = points
+        self.xy0 = xy0
+        self.xy1 = xy1
         self.W = W
         self.eval_matrix = self._assemble_eval_matrix()
         
@@ -253,15 +265,12 @@ class SpatialData:
             u(x_i, y_i) = (EU)_i     i = 1, ..., n(n+1)/2
         where u(x,y) = sum_i U_i phi_i(x,y)
         """
-        n = len(self.points)
-        N = int(n * (n + 1) / 2)
+        N = len(self.xy0)
         basis = self.W.marginal_basis()
         
-        idx, E = 0, np.zeros((N, self.W.dim()))
-        for i, x in enumerate(self.points):
-            px = [phi(x) for phi in basis]
-            for y in self.points[i:]:
-                py = [phi(y) for phi in basis]
-                E[idx] = np.kron(px, py)
-                idx += 1
+        E = np.zeros((N, self.W.dim()))
+        for idx, (p0, p1) in enumerate(zip(self.xy0, self.xy1)):
+            phi0 = [phi(p0) for phi in basis]
+            phi1 = [phi(p1) for phi in basis]
+            E[idx] = np.kron(phi0, phi1)
         return E
