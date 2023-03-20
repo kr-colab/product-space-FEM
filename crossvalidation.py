@@ -79,7 +79,7 @@ V = fenics.FunctionSpace(mesh, 'CG', 1)
 W = pf.ProductFunctionSpace(V)
 
 test_errors = []
-for fold, (train, test) in enumerate(data.split(k=params["folds"])):
+for fold, (train, test) in enumerate(data.split(k=params["folds"], include_between=True)):
     print(f"Doing fold {fold} with {params['method']}...")
     print("\t".join(["", "total_loss", "error", "regularization", "smoothing"]))
     eqn = pf.HittingTimes(W, boundary, epsilon=params['boundary']['epsilon'])

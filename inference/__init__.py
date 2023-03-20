@@ -118,21 +118,29 @@ class SpatialDivergenceData:
 
         return boundary
 
-    def _subset_locations(self, names):
+    def _subset_locations(self, names, both=True):
         sd = self.spatial_data.loc[names, :].reset_index(names="name")
-        ut = np.logical_and(
-                np.isin(self.genetic_data['name1'], names),
-                np.isin(self.genetic_data['name2'], names)
-        )
+        if both:
+            ut = np.logical_and(
+                    np.isin(self.genetic_data['name1'], names),
+                    np.isin(self.genetic_data['name2'], names)
+            )
+        else:
+            ut = np.logical_or(
+                    np.isin(self.genetic_data['name1'], names),
+                    np.isin(self.genetic_data['name2'], names)
+            )
         gd = self.genetic_data.iloc[ut, :].reset_index(drop=True)
         return sd, gd
 
-    def split(self, k, seed=None):
+    def split(self, k, include_between=False, seed=None):
         """
         An iterator over even, non-overlapping splits of the locations into k folds,
         returning train, test SpatialDivergenceData objects,
         where `train` has only data for the 'training' locations,
-        and `test` has only data for 'test' locations.
+        and `test` has data between 'test' locations; if
+        `include_between` is True then `test` also includes data between
+        the 'testing' and 'training' locations.
         """
         n = self.spatial_data.shape[0]
         rng = np.random.default_rng(seed=seed)
@@ -140,10 +148,10 @@ class SpatialDivergenceData:
         rng.shuffle(kvec)
         for j in range(k):
             train_names = self.spatial_data.index[kvec != j]
-            train_sd, train_gd = self._subset_locations(train_names)
+            train_sd, train_gd = self._subset_locations(train_names, both=True)
             train = SpatialDivergenceData(train_sd, train_gd)
             test_names = self.spatial_data.index[kvec == j]
-            test_sd, test_gd = self._subset_locations(test_names)
+            test_sd, test_gd = self._subset_locations(test_names, both=not include_between)
             test = SpatialDivergenceData(test_sd, test_gd)
             yield train, test
 
