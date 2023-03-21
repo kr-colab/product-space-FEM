@@ -31,11 +31,13 @@ def control_plot(control, **kwargs):
             ax.append(covariance_plot(m))
     return ax
 
-def plot(func, **kwargs):
+def plot(func, ax, **kwargs):
     is_control = isinstance(func, Control)
     is_function = isinstance(func, fx.Function)
     ncols = len(func) if is_control else 1
-    fig, ax = plt.subplots(1, ncols)
+    if ax is None:
+        _, ax = plt.subplots(1, ncols)
+    fig = ax.figure
     
     if is_control:
         axs = control_plot(func, **kwargs)

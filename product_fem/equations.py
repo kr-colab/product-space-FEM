@@ -202,10 +202,12 @@ class HittingTimes2D(Equation):
         sig.vector()[:] = sig_arr
         return mu, sig
     
-    def plot_control(self):
+    def plot_control(self, axs=None):
         m = self.control
         
-        fig, axs = plt.subplots(1, 2, dpi=150)
+        if axs is None:
+            fig, axs = plt.subplots(1, 2, dpi=150)
+        assert len(axs) == 2, "plot_control: axs must be of length 2"
         for ax in axs: ax.set_aspect('equal')
         
         plt.sca(axs[1])

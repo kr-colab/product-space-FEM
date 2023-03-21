@@ -207,10 +207,13 @@ class ProductFunction:
         u_x = basis_x.dot(U)
         return to_Function(u_x, self.W.V)
 
-    def plot(self, x):
-        fig, ax = plt.subplots(dpi=150)
+    def plot(self, x, ax=None):
+        if ax is None:
+            fig, ax = plt.subplots(dpi=150)
+        fig = ax.figure
 
         u_x = self.get_slice(x)
+        plt.sca(ax)
         p = plot(u_x)
         ax.scatter(x[0], x[1],
                    marker='*', c='orange', s=15**2,

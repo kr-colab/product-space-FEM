@@ -119,13 +119,14 @@ class SpatialDivergenceData:
         return boundary
 
     def _subset_locations(self, names, both=True):
-        sd = self.spatial_data.loc[names, :].reset_index(names="name")
         if both:
+            sd = self.spatial_data.loc[names, :].reset_index(names="name")
             ut = np.logical_and(
                     np.isin(self.genetic_data['name1'], names),
                     np.isin(self.genetic_data['name2'], names)
             )
         else:
+            sd = self.spatial_data.loc[:, :].reset_index(names="name")
             ut = np.logical_or(
                     np.isin(self.genetic_data['name1'], names),
                     np.isin(self.genetic_data['name2'], names)
