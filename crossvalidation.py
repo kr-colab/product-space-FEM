@@ -15,6 +15,8 @@ and the json file should include:
     "mesh" : either an XML file or a [width, height] of integers
     "folds": number of folds
     "regularization": {{ "l2": [a, b], "smoothing": [c, d] }}
+        where the second value for each is the *ratio* of regularization
+        strengths for the two controls (ellipse and vector)
     "boundary": {{ "epsilon": x, "eps0": y, "eps1": z }}
     "method": method for optimizing (default: BFGS)
     "options": additional options to the optimizer

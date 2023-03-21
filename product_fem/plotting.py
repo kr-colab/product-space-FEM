@@ -102,6 +102,10 @@ def animate_control(m, m_hats, save_as, duration=5, df=None, **kwargs):
     """
     m.update(m_hats[0])
     # fenics.plot seems to ONLY be able to plot to last axes
+    # the issue is that doing plt.sca( ) in the animate function errors;
+    # a workaround might be to update the data in the quiver plot
+    # (e.g., by directly setting q.X) by making a new dummy figure
+    # and asking fenics to plot to that one, then copying over the info
     layout = [[]]
     if df is not None:
         layout[0] += ["df"]
