@@ -90,3 +90,57 @@ def plot_peclets(mesh, peclets):
     plt.legend(*s.legend_elements("sizes", color="C0", num=6, func=lambda s: s/100), 
                bbox_to_anchor=(1, 1), title="Peclet numbers")
     return fig, ax
+
+def animate_control(m, m_hats, save_as, duration=5, df=None, **kwargs):
+    """
+    Animation of a control object:
+    `m`: a control
+    `m_hats`: a list of objects that can be used to update m
+    `save_as`: the output mp4 filename
+    `duration`: duration of the animation, in seconds
+    `df`: an additional data frame to be plotted below
+    """
+    m.update(m_hats[0])
+    # fenics.plot seems to ONLY be able to plot to last axes
+    layout = [[]]
+    if df is not None:
+        layout[0] += ["df"]
+    layout[0] += ["ellipse", "vector"]
+    fig = plt.figure(layout="constrained", dpi=150, figsize=(9, 3))
+    axes = fig.subplot_mosaic(layout)
+
+    s = axes["ellipse"].scatter([], [])
+    q = axes["vector"].quiver(np.empty(49), np.empty(49), np.empty(49), np.empty(49))
+    d = None
+    if df is not None:
+        d = df.plot(ax=axes["df"])
+
+    # plot frame i
+    def animate(i):
+        if i % 10 == 0: print(f'animating frame {i} / {len(m_hats)}')
+        # update to control at ith iteration
+        m.update(m_hats[i])
+        q.axes.clear()
+        s.axes.clear()
+        qu = fx.plot(m[0])
+        ax = plot_ellipse_field(m[1], axes["ellipse"])
+        out = [qu] + ax.get_children()
+        if d is not None:
+            d.clear()
+            dp = df.plot(ax=d)
+            sc = d.scatter([i for _ in df.columns], df.iloc[i].to_numpy())
+            out += dp.get_children()
+        return out
+
+    interval = duration/len(m_hats) * 1000  # displayed in python
+    anim = FuncAnimation(
+            fig,
+            animate,
+            frames=len(m_hats),
+            interval=interval,
+            blit=True
+    )
+    
+    writer = kwargs.get('writer', 'ffmpeg')
+    fps = len(m_hats) / duration  # for saved file
+    anim.save(save_as, writer='ffmpeg', fps=fps)

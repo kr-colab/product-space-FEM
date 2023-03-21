@@ -88,5 +88,11 @@ for fold, axs in enumerate(axes):
 plt.tight_layout()
 plt.savefig(solnfile)
 
-# for fold in range(params['folds']):
-#     eqn.animate(results[fold]['m_hats'], save_as=f"history_{fold}.mp4")
+for fold in range(params['folds']):
+    animfile = os.path.join(outdir, f"history_{fold}.mp4")
+    pf.animate_control(
+            control,
+            results[fold]['m_hats'],
+            save_as=animfile,
+            df=losses[fold],
+    )

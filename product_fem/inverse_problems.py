@@ -4,9 +4,7 @@ from .boundary_conditions import ProductDirichletBC
 import scipy.optimize as opt
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-from fenics import plot
-from .plotting import plot_ellipse_field
+from .plotting import plot_ellipse_field, animate_control
 
 
 def taylor_test(invp):
@@ -151,35 +149,9 @@ class InverseProblem:
                   'l2reg': l2reg, 
                   'smreg': smreg}
         return allvecs, losses, results
-        
-    # NOTE: this isn't a great place for this function since this only plots 
-    # the control in the HittingTimes2D equation
-    def animate(self, m_hats, save_as, **kwargs):
-        # initialize figure and axes 
-        m = self.equation.control
-        m.update(m_hats[0])
-        fig, ax = plt.subplots(1, 2, dpi=150)
 
-        q = ax[1].quiver(np.empty(49), np.empty(49), np.empty(49), np.empty(49))
-        s = ax[0].scatter([], [])
-
-        # plot frame i
-        def animate(i):
-            nonlocal q, s
-            if i % 10 == 0: print(f'animating frame {i} / {len(m_hats)}')
-            # update to control at ith iteration
-            m.update(m_hats[i])
-            q.axes.clear()
-            s.axes.clear()
-            q = plot(m[0])
-            ax[0] = plot_ellipse_field(m[1], ax[0])
-            return [q] + ax[0].get_children()
-
-        anim = FuncAnimation(fig, animate, frames=len(m_hats), interval=1, blit=True)
-        
-        writer = kwargs.get('writer', 'ffmpeg')
-        fps = kwargs.get('fps', 18)
-        anim.save(save_as, writer='ffmpeg', fps=18)
+    def animate(self, *args, **kwargs):
+        return animate_control(control=self.equation.control, *args, **kwargs)
 
     def plot_results(self):
         """This can be different for each inverse equation
