@@ -9,3 +9,4 @@ examples
 *.png
 *.mp4
 dist/
+.snakemake/

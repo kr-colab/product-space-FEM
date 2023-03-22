@@ -47,12 +47,13 @@ params.update(file_params)
 results_file = os.path.join(outdir, 'results.pkl')
 
 # load spatial and genetic data
-spatial_data = pd.read_csv(os.path.join(outdir, params['spatial_data']), index_col=0).rename(
-        columns={"site_name": "name", "long": "x", "lat": "y"}
+spatial_data = pd.read_csv(params['spatial_data']).rename(
+        columns={"name": "name", "long": "x", "lat": "y"}
 )
-genetic_data = pd.read_csv(os.path.join(outdir, params['genetic_data']), index_col=0).rename(
+genetic_data = pd.read_csv(params['genetic_data']).rename(
         columns={"loc1": "name1", "loc2": "name2", "dxy": "divergence"}
 )
+
 data = inference.SpatialDivergenceData(spatial_data, genetic_data)
 data.normalise(min_xy=0.2, max_xy=0.8)
 
