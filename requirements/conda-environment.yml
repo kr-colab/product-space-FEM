@@ -1,5 +1,6 @@
 name: psf
 channels:
+  - bioconda
   - conda-forge
   - anaconda
   - defaults
@@ -11,3 +12,8 @@ dependencies:
   - scipy
   - pandas
   - mshr
+  - ipykernel
+  - pyslim
+  - slim
+  - snakemake
+    
