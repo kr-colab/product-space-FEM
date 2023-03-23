@@ -6,17 +6,18 @@ import numpy as np
 
 usage = f"""
 Usage:
-    {sys.argv[0]} (json file with parameters in) (n_l2) (min_l2) (max_l2) (n_smoothness) (min_smoothness) (max_smoothness) (spatial data file) (genetic data file)
+    {sys.argv[0]} (json file with parameters in) (n_l2) (min_l2) (max_l2) (n_smoothness) (min_smoothness) (max_smoothness) (basename for spatial and genetic data files)
 where :
     - n_X is the number of subdivisions in the grid for parameter X, from min_X to max_X
     - the json file should include the parameters required for
 crossvalidation.py; the result will be n^2 subdirectories containing simple
 json files that vary the l2 and smoothness regularization parameters over the
 2-dimensional grid from min to max.
-    - spatial, genetic data files should be paths to the files *relative to the json file*
+    - spatial, genetic data files should be at (basename).stats.csv and (basename).pairstats.csv respectively;
+        paths given to the files are *relative to the json file*
 """
 
-if len(sys.argv) != 8 and len(sys.argv) != 10:
+if len(sys.argv) != 8 and len(sys.argv) != 9:
     print(usage)
     sys.exit()
 
@@ -28,14 +29,15 @@ outdir = os.path.dirname(paramsfile)
 with open(paramsfile, 'r') as f:
     params = json.load(f)
 
-outbase = "xval"
+outbase = ""
 
 if len(sys.argv) > 8:
-    sfile = sys.argv[8]
-    gfile = sys.argv[9]
+    sgbase = sys.argv[8]
+    sfile = f"{sgbase}.stats.csv"
+    gfile = f"{sgbase}.pairstats.csv"
     params['spatial_data'] = sfile
     params['genetic_data'] = gfile
-    outbase = os.path.basename(sfile).split(".")[0]
+    outbase = os.path.basename(sfile).split(".")[0] + "_"
 
 range_l2 = np.linspace(min_l2, max_l2, n_l2)
 range_sm = np.linspace(min_sm, max_sm, n_sm)
@@ -51,7 +53,7 @@ for l2 in range_l2:
     for sm in range_sm:
         reg['l2'][0] = reg['l2'][1] = l2
         reg['smoothing'][0] = reg['smoothing'][1] = sm
-        xdir = os.path.join(outdir, f"{outbase}_{j}")
+        xdir = os.path.join(outdir, f"{outbase}xval_{j}")
         os.mkdir(xdir)
         outfile = os.path.join(xdir, "xval_params.json")
         with open(outfile, "w") as f:

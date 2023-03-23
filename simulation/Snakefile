@@ -13,6 +13,9 @@ rule run_slim:
         base_dir + "/slim_params.json"
     output:
         f"{base_dir}/out_{seed}.trees"
+    resources:
+        runtime = 720,
+        mem_mb = 6000
     shell:
         f"""
             echo "working in {base_dir}"
