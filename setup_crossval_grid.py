@@ -6,7 +6,7 @@ import numpy as np
 
 usage = f"""
 Usage:
-    {sys.argv[0]} (json file with parameters in) (n_l2) (min_l2) (max_l2) (n_smoothness) (min_smoothness) (max_smoothness) (basename for spatial and genetic data files)
+    {sys.argv[0]} (json file with parameters in) (n_l2) (min_l2) (max_l2) (n_smoothness) (min_smoothness) (max_smoothness) (basename for spatial and genetic data files) [start]
 where :
     - n_X is the number of subdivisions in the grid for parameter X, from min_X to max_X
     - the json file should include the parameters required for
@@ -15,9 +15,10 @@ json files that vary the l2 and smoothness regularization parameters over the
 2-dimensional grid from min to max.
     - spatial, genetic data files should be at (basename).stats.csv and (basename).pairstats.csv respectively;
         paths given to the files are *relative to the json file*
+    - `start` should be an integer from which directory numbering will start (defaults to 0)
 """
 
-if len(sys.argv) != 8 and len(sys.argv) != 9:
+if len(sys.argv) != 8 and len(sys.argv) != 9 and len(sys.argv) != 10:
     print(usage)
     sys.exit()
 
@@ -39,6 +40,11 @@ if len(sys.argv) > 8:
     params['genetic_data'] = gfile
     outbase = os.path.basename(sfile).split(".")[0] + "_"
 
+start = 0
+if len(sys.argv) > 9:
+    start = int(sys.argv[9])
+
+
 range_l2 = np.linspace(min_l2, max_l2, n_l2)
 range_sm = np.linspace(min_sm, max_sm, n_sm)
 
@@ -48,7 +54,7 @@ params["genetic_data"] = os.path.join("..", params["genetic_data"])
 if isinstance(params["mesh"], str):
     params["mesh"] = os.path.join("..", params["mesh"])
 
-j = 0
+j = start
 for l2 in range_l2:
     for sm in range_sm:
         reg['l2'][0] = reg['l2'][1] = l2

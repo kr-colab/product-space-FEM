@@ -1,5 +1,5 @@
 # assumes python setup_crossval_grid.py has already been executed
-# example command: snakemake -c6  -C base_name=simulation/density_saddle/out_2877096093782_stats/rep349832_ --profile ~/.config/snakemake/talapas/
+# example command: snakemake -c6  -C base_name=simulation/density_saddle/out_2877096093782_stats/rep349832 --profile ~/.config/snakemake/talapas/
 
 base_name = config['base_name'] # can set with --config base_name="..."
 outs, = glob_wildcards(base_name + "_{iter}/xval_params.json")
