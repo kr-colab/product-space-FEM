@@ -1,10 +1,10 @@
 {
-    "K":[10],
+    "K":[20],
     "SIGMA":[1.0],
     "BIAS":[0.0],
     "BIAS_MAP_FILE": ["../maps/one.png"],
     "COVARIANCE_MAP_FILE": ["../maps/identity.png"],
     "HABITAT_MAP_FILE": ["../maps/butte_height.png"],
-    "NUMTICKS": [1000]
+    "NUMTICKS": [10000]
 }
 

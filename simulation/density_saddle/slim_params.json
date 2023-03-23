@@ -1,5 +1,5 @@
 {
-    "K":[10],
+    "K":[50],
     "SIGMA":[1.0],
     "BIAS":[0.0],
     "BIAS_MAP_FILE": ["../maps/one.png"],

@@ -1,10 +1,10 @@
 {
-    "K":[10],
+    "K":[20],
     "SIGMA":[1.0],
-    "BIAS":[0.5],
-    "BIAS_MAP_FILE": ["../maps/saddle_bias.png"],
+    "BIAS":[-0.5],
+    "BIAS_MAP_FILE": ["../maps/gaussian_bias.png"],
     "COVARIANCE_MAP_FILE": ["../maps/identity.png"],
     "HABITAT_MAP_FILE": ["../maps/one_bw.png"],
-    "NUMTICKS": [1000]
+    "NUMTICKS": [10000]
 }
 

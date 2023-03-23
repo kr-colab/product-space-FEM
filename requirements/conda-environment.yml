@@ -13,7 +13,7 @@ dependencies:
   - pandas
   - mshr
   - ipykernel
-  - pyslim
+  - pyslim>=1.0.1
   - slim
   - snakemake
     

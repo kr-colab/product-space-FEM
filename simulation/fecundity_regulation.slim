@@ -21,10 +21,10 @@ initialize() {
 		"NUMTICKS", 200, // total number of ticks to run for
 		"OUTDIR", exists("OUTDIR") ? OUTDIR else "."
 		);
-	paramfile = defaults.getValue("OUTDIR") + "/" + "params.json";
+	paramfile = defaults.getValue("OUTDIR") + "/" + "slim_params.json";
 	if (fileExists(paramfile)) {
 		local_defaults = Dictionary(paste(readFile(paramfile), sep="\n"));
-		// directories in params.json are relative to OUTDIR
+		// directories in slim_params.json are relative to OUTDIR
 		for (k in c("BIAS_MAP_FILE", "COVARIANCE_MAP_FILE", "HABITAT_MAP_FILE")) {
 			if (!isNULL(local_defaults.getValue(k)))
 				local_defaults.setValue(k, defaults.getValue("OUTDIR") + "/" + local_defaults.getValue(k));

@@ -1,7 +1,7 @@
 Structure of this directory:
 
 - `bias_saddle/` - one particular scenario
-    * `params.json` - parameters to run this simulation with
+    * `slim_params.json` - parameters to run this simulation with
     * `out_2874405695390.trees` - the result of one such simulation
     * `out_2874405695390_stats/` - things computed on that result
         - `rep371579.{stats,pairstats}.csv` - the result of running `compute_stats.py` once on the result
@@ -29,8 +29,8 @@ In this directory:
 Workflow:
 
 For **debugging/visualization**, open `fecundity_regulation.slim` in SLiMgui
-with workding directory set to a subdirectory with `params.json`,
-e.g., `mkdir test; cp example_params.json test/params.json; cd test; SLiMgui ../fecundity_regulation.slim`
+with working directory set to a subdirectory with `slim_params.json`,
+e.g., `mkdir test; cp example_params.json test/slim_params.json; cd test; SLiMgui ../fecundity_regulation.slim`
 (and edit `test/params.json` as desired).
 
 To **run a test** (e.g., `bias_bump`):

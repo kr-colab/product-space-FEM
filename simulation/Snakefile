@@ -1,0 +1,22 @@
+# example command:
+#  snakemake -c6  -C seed=123 base_dir=bias_bump --profile ~/.config/snakemake/talapas/
+
+base_dir = config['base_dir'] # can set with --config base_dir="..."
+seed = config['seed']
+
+rule all:
+    input:
+        f"{base_dir}/out_{seed}.trees"
+
+rule run_slim:
+    input:
+        base_dir + "/slim_params.json"
+    output:
+        f"{base_dir}/out_{seed}.trees"
+    shell:
+        f"""
+            echo "working in {base_dir}"
+            slim -s {seed} -d 'OUTDIR="{base_dir}"' fecundity_regulation.slim
+            python compute_stats.py {base_dir}/out_{seed}.trees 400
+            python plot_maps.py {base_dir}/out_{seed}.spstats.csv
+        """
