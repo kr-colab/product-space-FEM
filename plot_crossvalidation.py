@@ -50,10 +50,10 @@ plt.savefig(lossfile)
 
 ### BEGIN STUFF COPIED FROM crossvalidation.py (it doesn't pickle)
 # need this to plot the solution
-spatial_data = pd.read_csv(os.path.join(outdir, params['spatial_data']), index_col=0).rename(
+spatial_data = pd.read_csv(os.path.join(outdir, params['spatial_data'])).rename(
         columns={"site_name": "name", "long": "x", "lat": "y"}
 )
-genetic_data = pd.read_csv(os.path.join(outdir, params['genetic_data']), index_col=0).rename(
+genetic_data = pd.read_csv(os.path.join(outdir, params['genetic_data'])).rename(
         columns={"loc1": "name1", "loc2": "name2", "dxy": "divergence"}
 )
 data = inference.SpatialDivergenceData(spatial_data, genetic_data)

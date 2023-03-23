@@ -53,7 +53,6 @@ spatial_data = pd.read_csv(os.path.join(outdir, params['spatial_data'])).rename(
 genetic_data = pd.read_csv(os.path.join(outdir, params['genetic_data'])).rename(
         columns={"loc1": "name1", "loc2": "name2", "dxy": "divergence"}
 )
-print(spatial_data.columns)
 data = inference.SpatialDivergenceData(spatial_data, genetic_data)
 data.normalise(min_xy=0.2, max_xy=0.8)
 
