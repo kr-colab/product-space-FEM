@@ -27,6 +27,8 @@ num_samples = int(sys.argv[2])
 if len(sys.argv) < 4:
     rng = np.random.default_rng()
     seed = rng.integers(1000000)
+else:
+    seed = int(sys.argv[3])
 
 rng = np.random.default_rng(seed=seed)
 

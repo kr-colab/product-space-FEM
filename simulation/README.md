@@ -1,3 +1,12 @@
+Structure of this directory:
+
+- `bias_saddle/` - one particular scenario
+    * `params.json` - parameters to run this simulation with
+    * `out_2874405695390.trees` - the result of one such simulation
+    * `out_2874405695390_stats/` - things computed on that result
+        - `rep371579.{stats,pairstats}.csv` - the result of running `compute_stats.py` once on the result
+        - `xval_0/` - one crossvalidation setup using those results
+
 Outline:
 
 Figure "uphill": two rows, one with 'truth', one with inferred bias;

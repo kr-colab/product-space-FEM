@@ -31,6 +31,11 @@ range_l2 = np.linspace(min_l2, max_l2, n_l2)
 range_sm = np.linspace(min_sm, max_sm, n_sm)
 
 reg = params['regularization']
+params["spatial_data"] = os.path.join("..", params["spatial_data"])
+params["genetic_data"] = os.path.join("..", params["genetic_data"])
+if isinstance(params["mesh"], str):
+    params["mesh"] = os.path.join("..", params["mesh"])
+
 j = 0
 for l2 in range_l2:
     for sm in range_sm:
@@ -42,4 +47,4 @@ for l2 in range_l2:
         with open(outfile, "w") as f:
             json.dump(params, f, indent=3)
         j += 1
-        
+
