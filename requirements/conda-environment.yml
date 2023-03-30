@@ -16,4 +16,4 @@ dependencies:
   - pyslim>=1.0.1
   - slim
   - snakemake
-    
+  - hyperopt   
