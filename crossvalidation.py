@@ -83,6 +83,8 @@ def objective(args):
     W = pf.ProductFunctionSpace(V)
 
     errs = []
+    params['regularization']['l2'] = [l2_0, l2_1]
+    params['regularization']['smoothing'] = [smooth_0, smooth_1]
     results = {'params': params}
     for fold, (train, test) in enumerate(data.split(k=params["folds"], include_between=True)):
         print(f"Doing fold {fold} with {params['method']}...")
