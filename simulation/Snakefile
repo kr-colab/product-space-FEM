@@ -14,7 +14,7 @@ rule run_slim:
     output:
         f"{base_dir}/out_{seed}.trees"
     resources:
-        runtime = 720,
+        runtime = 2880,
         mem_mb = 6000
     shell:
         f"""

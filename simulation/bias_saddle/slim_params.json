@@ -1,5 +1,5 @@
 {
-    "K":[200],
+    "K":[70],
     "SIGMA":[1.0],
     "BIAS":[0.5],
     "BIAS_MAP_FILE": ["../maps/saddle_bias.png"],

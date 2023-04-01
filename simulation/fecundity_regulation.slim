@@ -62,6 +62,8 @@ initialize() {
 
 1 first() {
 	community.rescheduleScriptBlock(s99, ticks=NUMTICKS);
+	community.rescheduleScriptBlock(s101, start=max(1, NUMTICKS - 500), end=NUMTICKS - 1);
+	community.rescheduleScriptBlock(s102, ticks=NUMTICKS - 1);
 }
 
 1 early() {
@@ -145,6 +147,11 @@ late() {
 	if (p1.individualCount == 0) {
 		stop("The population has died out, in tick " + community.tick);
 	}
+}
+
+s98 2000 late() {
+    if (community.tick % 500 == 0)
+        if (exists("OUTPATH")) sim.treeSeqOutput(OUTPATH, metadata=params);
 }
 
 s99 2000 late() {
