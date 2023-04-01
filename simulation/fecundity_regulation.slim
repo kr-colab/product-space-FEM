@@ -76,7 +76,7 @@ initialize() {
 
 	defineConstant("WIDTH", habitat_map.width / MAP_RESOLUTION);
 	defineConstant("HEIGHT", habitat_map.height / MAP_RESOLUTION);
-	sim.addSubpop("p1", asInteger(K * WIDTH * HEIGHT));
+	sim.addSubpop("p1", asInteger(K * WIDTH * HEIGHT / 10)); // the 10 is a fudge factor
 	p1.setSpatialBounds(c(0.0, 0.0, WIDTH, HEIGHT));
 	for (ind in p1.individuals) {
 		ind.setSpatialPosition(p1.pointUniform());
