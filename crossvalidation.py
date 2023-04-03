@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import json
 import argparse
-from hyperopt import hp, fmin, tpe, space_eval
+import hyperopt
 
 import product_fem as pf
 import fenics
@@ -41,8 +41,7 @@ def parse_args(args):
         "-H",
         "--use_hyperopt",
         action="store_true",
-        help="""Switch to tune parameters using hyperopt instead of grid search.
-    """,
+        help="Switch to tune parameters using hyperopt instead of grid search.",
     )
 
     parser.add_argument(
@@ -50,7 +49,7 @@ def parse_args(args):
         "--max_evals",
         type=int,
         default=100,
-        help="""Maximum number of evaluations for hyperopt.""",
+        help="Maximum number of evaluations for hyperopt.",
     )
 
     parser.add_argument(
@@ -58,69 +57,38 @@ def parse_args(args):
         "--max_iter",
         type=int,
         default=100,
-        help="""Maximum number of iterations for model optimization.""",
+        help="Maximum number of iterations for model optimization.",
     )
+
+
+    parser.add_argument(
+        "-l",
+        "--l2",
+        type=float,
+        nargs='+',
+        default=[0.0, 1.0],
+        help="Space separated values for the mean and standard deviation of the"
+        " hyperopt lognormal distribution for the l2 regularization parameter.",
+    )
+
+    parser.add_argument(
+        "-s",
+        "--smooth",
+        type=float,
+        nargs='+',
+        default=[0.0, 1.0],
+        help="Space separated values for the mean and standard deviation of the"
+        " hyperopt lognormal distribution for the smoothing regularization parameter."
+    )
+
 
     return parser.parse_args()
 
 
 def objective(tuning_params = None):
-    # defaults
-    params = {
-        "method": "BFGS",
-        "options": {
-            'gtol': 1e-8,
-            'xrtol': 1e-8,
-            'maxiter': args.max_iter,
-        },
-        "boundary": None,
-    }
-
-    paramsfile = args.json
-    outdir = os.path.dirname(paramsfile)
-    with open(paramsfile, 'r') as f:
-        file_params = json.load(f)
-
-    params.update(file_params)
     
-    if args.use_hyperopt:
-        results_file = os.path.join(outdir, 'results_hyperopt.pkl')
-    else:
-        results_file = os.path.join(outdir, 'results.pkl')
-
-    # load spatial and genetic data
-    spatial_data = pd.read_csv(os.path.join(outdir, params['spatial_data'])).rename(
-            columns={"site_name": "name", "long": "x", "lat": "y"}
-    )
-    genetic_data = pd.read_csv(os.path.join(outdir, params['genetic_data'])).rename(
-            columns={"loc1": "name1", "loc2": "name2", "dxy": "divergence"}
-    )
-    data = inference.SpatialDivergenceData(spatial_data, genetic_data)
-    data.normalise(min_xy=0.2, max_xy=0.8)
-
-    # optionally determine the boundary parameters
-    if params['boundary'] is None:
-        bdry_params = data.choose_epsilons()
-        params['boundary'] = {
-                "epsilon": bdry_params['eps0'],
-                "eps0": bdry_params['eps0'],
-                "eps1": bdry_params['eps1']
-        }
-
-    boundary = data.boundary_fn(eps0=params['boundary']['eps0'], eps1=params['boundary']['eps1'])
-
-    if len(params['mesh']) == 1 and isinstance(params['mesh'], str):
-        mesh = fenics.Mesh(params['mesh'])
-    elif len(params['mesh']) == 2:
-        mesh = fenics.UnitSquareMesh(*params['mesh'])
-    else:
-        print(f"mesh must be an xml file name or (width, height), got {params['mesh']}")
-        sys.exit()
-    V = fenics.FunctionSpace(mesh, 'CG', 1)
-    W = pf.ProductFunctionSpace(V)
-
     errs = []
-    if args.use_hyperopt:
+    if tuning_params is not None:
         l2_0, l2_1, smooth_0, smooth_1 = tuning_params
         params['regularization']['l2'] = [l2_0, l2_1]
         params['regularization']['smoothing'] = [smooth_0, smooth_1]
@@ -179,11 +147,69 @@ if __name__ == "__main__":
 
     args = parse_args(sys.argv[1:])
     
+    # defaults
+    params = {
+        "method": "BFGS",
+        "options": {
+            'gtol': 1e-8,
+            'xrtol': 1e-8,
+            'maxiter': args.max_iter,
+        },
+        "boundary": None,
+    }
+
+    paramsfile = args.json
+    outdir = os.path.dirname(paramsfile)
+    with open(paramsfile, 'r') as f:
+        file_params = json.load(f)
+
+    params.update(file_params)
+    
+    if args.use_hyperopt:
+        results_file = os.path.join(outdir, 'results_hyperopt.pkl')
+    else:
+        results_file = os.path.join(outdir, 'results.pkl')
+
+    # load spatial and genetic data
+    spatial_data = pd.read_csv(os.path.join(outdir, params['spatial_data'])).rename(
+            columns={"site_name": "name", "long": "x", "lat": "y"}
+    )
+    genetic_data = pd.read_csv(os.path.join(outdir, params['genetic_data'])).rename(
+            columns={"loc1": "name1", "loc2": "name2", "dxy": "divergence"}
+    )
+    data = inference.SpatialDivergenceData(spatial_data, genetic_data)
+    data.normalise(min_xy=0.2, max_xy=0.8)
+
+    # optionally determine the boundary parameters
+    if params['boundary'] is None:
+        bdry_params = data.choose_epsilons()
+        params['boundary'] = {
+                "epsilon": bdry_params['eps0'],
+                "eps0": bdry_params['eps0'],
+                "eps1": bdry_params['eps1']
+        }
+
+    boundary = data.boundary_fn(eps0=params['boundary']['eps0'], eps1=params['boundary']['eps1'])
+
+    if len(params['mesh']) == 1 and isinstance(params['mesh'], str):
+        mesh = fenics.Mesh(params['mesh'])
+    elif len(params['mesh']) == 2:
+        mesh = fenics.UnitSquareMesh(*params['mesh'])
+    else:
+        print(f"mesh must be an xml file name or (width, height), got {params['mesh']}")
+        sys.exit()
+    V = fenics.FunctionSpace(mesh, 'CG', 1)
+    W = pf.ProductFunctionSpace(V)
+
     if args.use_hyperopt:
         # define a search space
-        space = [hp.lognormal('l2_0', 0, 2), hp.lognormal('l2_1', 0, 2), hp.lognormal('smooth_0', 0, 2), hp.lognormal('smooth_1', 0, 2)] 
+        space = [
+            hyperopt.hp.lognormal('l2_0', args.l2[0], args.l2[1]), 
+            hyperopt.hp.lognormal('l2_1', args.l2[0], args.l2[1]), 
+            hyperopt.hp.lognormal('smooth_0', args.smooth[0], args.smooth[1]), 
+            hyperopt.hp.lognormal('smooth_1', args.smooth[0], args.smooth[1])] 
         # minimize the objective over the space
-        best = fmin(objective, space, algo=tpe.suggest, max_evals=args.max_evals)
-        print(best)
+        best = hyperopt.fmin(objective, space, algo=hyperopt.tpe.suggest, max_evals=args.max_evals)
+        print(f"Converged, with hyperopt.fmin, to {best}")
     else:
         objective()
