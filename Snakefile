@@ -30,7 +30,10 @@ rule stats:
     output:
         [base_name + "_stats/rep{seed}.pairstats.csv",
          base_name + "_stats/rep{seed}.stats.csv"]
+    resources:
+        runtime = 720,
+        mem_mb = 6000
     shell:
         """
-            python compute_stats.py {input} 
+            python compute_stats.py {input} {num_samples} {seed}
         """
