@@ -2,6 +2,12 @@
 # example command: snakemake -c6  -C base_name=simulation/density_saddle/out_2877096093782_stats/rep349832 --profile ~/.config/snakemake/talapas/
 
 base_name = config['base_name'] # can set with --config base_name="..."
+seed = 123
+num_samples = 900
+if 'seed' in config:
+    seed = config['seed']
+if 'num_samples' in config:
+    num_samples = config['num_samples']
 outs, = glob_wildcards(base_name + "_{iter}/xval_params.json")
 
 rule all:
@@ -16,4 +22,15 @@ rule cross_vall:
     shell:
         """
             python crossvalidation.py {input}
+        """
+
+rule stats:
+    input:
+        base_name + ".trees"
+    output:
+        [base_name + "_stats/rep{seed}.pairstats.csv",
+         base_name + "_stats/rep{seed}.stats.csv"]
+    shell:
+        """
+            python compute_stats.py {input} 
         """
