@@ -8,20 +8,27 @@ Assembly of the linear system uses FEniCS for integration.
 
 A conda environment can be created with
 ```
-conda env create -f requirements/conda-environment.yml
+mamba env create -f requirements/conda-environment.yml
 ```
 and then activated with
 ```
-conda activate psf
+mamba activate psf
 ```
 
 ## Development
 
 Install the conda environment
 ```
-conda env create -f requirements/CI-environment.yml
+mamba env create -f requirements/ci-environment.yml
+mamba activate anaconda-client-env
 ```
 and then activate it. The tests are at
 ```
 python3 -m pytest tests
+```
+
+A very simple test worflow (with all parameters set so it runs fast)
+can be run with:
+```
+./test.sh
 ```

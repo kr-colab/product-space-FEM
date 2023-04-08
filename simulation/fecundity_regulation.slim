@@ -81,6 +81,7 @@ initialize() {
 	for (ind in p1.individuals) {
 		ind.setSpatialPosition(p1.pointUniform());
 	}
+	p1.individuals.tag = 0;
 	p1.defineSpatialMap("bias_x", "xy", BIAS * 2 * (bias_map.floatR - 0.5), interpolate=T, valueRange=c(-1.0, 1.0) * abs(BIAS), colors=c("#000000", "#FF0000"));
 	p1.defineSpatialMap("bias_y", "xy", BIAS * 2 * (bias_map.floatG - 0.5), interpolate=T, valueRange=c(-1.0, 1.0) * abs(BIAS), colors=c("#000000", "#00FF00"));
 	p1.defineSpatialMap("sigma_x", "xy", SIGMA * 2 * (covariance_map.floatR - 0.5), interpolate=T, valueRange=c(0.0, 1.0) * SIGMA, colors=c("#000000", "#FF0000"));

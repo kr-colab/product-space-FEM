@@ -34,11 +34,12 @@ outbase = ""
 
 if len(sys.argv) > 8:
     sgbase = sys.argv[8]
-    sfile = f"{sgbase}.stats.csv"
-    gfile = f"{sgbase}.pairstats.csv"
+    fname = os.path.basename(sgbase)
+    sfile = os.path.join("..", f"{fname}.stats.csv")
+    gfile = os.path.join("..", f"{fname}.pairstats.csv")
     params['spatial_data'] = sfile
     params['genetic_data'] = gfile
-    outbase = os.path.basename(sfile).split(".")[0] + "_"
+    outbase = f"{sgbase}_"
 
 start = 0
 if len(sys.argv) > 9:
@@ -49,8 +50,6 @@ range_l2 = np.linspace(min_l2, max_l2, n_l2)
 range_sm = np.linspace(min_sm, max_sm, n_sm)
 
 reg = params['regularization']
-params["spatial_data"] = os.path.join("..", params["spatial_data"])
-params["genetic_data"] = os.path.join("..", params["genetic_data"])
 if isinstance(params["mesh"], str):
     params["mesh"] = os.path.join("..", params["mesh"])
 
@@ -59,7 +58,7 @@ for l2 in range_l2:
     for sm in range_sm:
         reg['l2'][0] = reg['l2'][1] = l2
         reg['smoothing'][0] = reg['smoothing'][1] = sm
-        xdir = os.path.join(outdir, f"{outbase}xval_{j}")
+        xdir = f"{outbase}xval_{j}"
         os.mkdir(xdir)
         outfile = os.path.join(xdir, "xval_params.json")
         with open(outfile, "w") as f:
