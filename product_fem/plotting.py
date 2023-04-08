@@ -124,8 +124,8 @@ def animate_control(m, m_hats, save_as, duration=5, df=None, **kwargs):
         if i % 10 == 0: print(f'animating frame {i} / {len(m_hats)}')
         # update to control at ith iteration
         m.update(m_hats[i])
-        q.axes.clear()
-        s.axes.clear()
+        axes['ellipse'].clear()
+        axes['vector'].clear()
         qu = fx.plot(m[0])
         ax = plot_ellipse_field(m[1], axes["ellipse"])
         out = [qu] + ax.get_children()
@@ -137,13 +137,14 @@ def animate_control(m, m_hats, save_as, duration=5, df=None, **kwargs):
         return out
 
     interval = duration/len(m_hats) * 1000  # displayed in python
-    anim = FuncAnimation(
-            fig,
-            animate,
-            frames=len(m_hats),
-            interval=interval,
-            blit=True
-    )
+    with np.errstate(invalid='ignore'):
+        anim = FuncAnimation(
+                fig,
+                animate,
+                frames=len(m_hats),
+                interval=interval,
+                blit=True
+        )
     
     writer = kwargs.get('writer', 'ffmpeg')
     fps = len(m_hats) / duration  # for saved file

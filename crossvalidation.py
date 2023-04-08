@@ -9,14 +9,10 @@ import product_fem as pf
 import fenics
 import inference
 
-
-
 def parse_args(args):
     # Instantiate the parser
     parser = argparse.ArgumentParser(
-        description="""regularization tuning  of Product Space FEM 
-            using cross validation
-        """
+        description="Regularization tuning of Product Space FEM using cross validation."
     )
 
     parser.add_argument(
@@ -60,7 +56,6 @@ def parse_args(args):
         help="Maximum number of iterations for model optimization.",
     )
 
-
     parser.add_argument(
         "-l",
         "--l2",
@@ -81,33 +76,33 @@ def parse_args(args):
         " hyperopt lognormal distribution for the smoothing regularization parameter."
     )
 
-
     return parser.parse_args()
 
 
-def objective(tuning_params = None):
-    
-    errs = []
+def objective(params, boundary, data, W, tuning_params=None):
     if tuning_params is not None:
         l2_0, l2_1, smooth_0, smooth_1 = tuning_params
         params['regularization']['l2'] = [l2_0, l2_1]
         params['regularization']['smoothing'] = [smooth_0, smooth_1]
 
-    results = {'params': params}
+    errs = []
+    results = {
+            'params': params,
+            'boundary': boundary.array,
+    }
     for fold, (train, test) in enumerate(data.split(k=params["folds"], include_between=True)):
         print(f"Doing fold {fold} with {params['method']}...")
         print("\t".join(["", "total_loss", "error", "regularization", "smoothing"]))
         results[fold] = {}
-        eqn = pf.HittingTimes(W, boundary, epsilon=params['boundary']['epsilon'])
-        control = eqn.control
         # loss functionals
+        eqn = pf.HittingTimes(W, boundary, epsilon=params['boundary']['epsilon'])
         xy0, xy1 = train.pair_xy()
         train_sd = pf.SpatialData(
                 train.genetic_data["divergence"].to_numpy(),
                 xy0, xy1,
                 W,
         )
-        train_loss = pf.LossFunctional(train_sd, control, params['regularization'])
+        train_loss = pf.LossFunctional(train_sd, eqn.control, params['regularization'])
         
         xy0, xy1 = test.pair_xy()
         test_sd = pf.SpatialData(
@@ -115,11 +110,11 @@ def objective(tuning_params = None):
                 xy0, xy1,
                 W,
         )
-        test_loss = pf.LossFunctional(test_sd, control, params['regularization'])
+        test_loss = pf.LossFunctional(test_sd, eqn.control, params['regularization'])
         
         invp = pf.InverseProblem(eqn, train_loss)
         m_hats, losses, optim_return = invp.optimize(
-                control, 
+                eqn.control, 
                 method=params['method'],
                 options=params['options'],
         )
@@ -128,7 +123,7 @@ def objective(tuning_params = None):
         results[fold]['optim_return'] = optim_return
         
         # test set error
-        control.update(m_hats[-1])
+        eqn.control.update(m_hats[-1])
         u_hat = eqn.solve()
         test_error = test_loss.l2_error(u_hat)
         results[fold]['test_error'] = test_error
@@ -156,6 +151,8 @@ if __name__ == "__main__":
             'maxiter': args.max_iter,
         },
         "boundary": None,
+        "min_xy": 0.2,
+        "max_xy": 0.8,
     }
 
     paramsfile = args.json
@@ -178,7 +175,7 @@ if __name__ == "__main__":
             columns={"loc1": "name1", "loc2": "name2", "dxy": "divergence"}
     )
     data = inference.SpatialDivergenceData(spatial_data, genetic_data)
-    data.normalise(min_xy=0.2, max_xy=0.8)
+    data.normalise(min_xy=params["min_xy"], max_xy=params["max_xy"])
 
     # optionally determine the boundary parameters
     if params['boundary'] is None:
@@ -189,7 +186,6 @@ if __name__ == "__main__":
                 "eps1": bdry_params['eps1']
         }
 
-    boundary = data.boundary_fn(eps0=params['boundary']['eps0'], eps1=params['boundary']['eps1'])
 
     if len(params['mesh']) == 1 and isinstance(params['mesh'], str):
         mesh = fenics.Mesh(params['mesh'])
@@ -201,15 +197,26 @@ if __name__ == "__main__":
     V = fenics.FunctionSpace(mesh, 'CG', 1)
     W = pf.ProductFunctionSpace(V)
 
+    # project the boundary function to the product space
+    # so we can save it (and "re-load" it) as a vector
+    bdry = data.boundary_fn(eps0=params['boundary']['eps0'], eps1=params['boundary']['eps1'])
+    boundary = pf.transforms.callable_to_ProductFunction(bdry, W)
+
     if args.use_hyperopt:
         # define a search space
         space = [
             hyperopt.hp.lognormal('l2_0', args.l2[0], args.l2[1]), 
             hyperopt.hp.lognormal('l2_1', args.l2[0], args.l2[1]), 
             hyperopt.hp.lognormal('smooth_0', args.smooth[0], args.smooth[1]), 
-            hyperopt.hp.lognormal('smooth_1', args.smooth[0], args.smooth[1])] 
+            hyperopt.hp.lognormal('smooth_1', args.smooth[0], args.smooth[1])
+        ]
         # minimize the objective over the space
-        best = hyperopt.fmin(objective, space, algo=hyperopt.tpe.suggest, max_evals=args.max_evals)
+        best = hyperopt.fmin(
+                lambda x: objective(params, boundary, data, W, tuning_params=x),
+                space,
+                algo=hyperopt.tpe.suggest,
+                max_evals=args.max_evals,
+        )
         print(f"Converged, with hyperopt.fmin, to {best}")
     else:
-        objective()
+        objective(params, boundary, data, W)

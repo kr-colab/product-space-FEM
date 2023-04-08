@@ -4,6 +4,6 @@
     "BIAS_MAP_FILE": ["../maps/one.png"],
     "COVARIANCE_MAP_FILE": ["../maps/identity.png"],
     "HABITAT_MAP_FILE": ["../maps/saddle_height.png"],
-    "NUMTICKS": [1000]
+    "NUMTICKS": [300]
 }
 

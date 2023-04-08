@@ -58,7 +58,7 @@ ts = ts.simplify(_alive_nodes, keep_input_roots=True)
 
 # write out full parameters
 params = ts.metadata['SLiM']['user_metadata']
-with open(os.path.join(basedir, "params.json"), 'w') as f:
+with open(os.path.join(basedir, "slim_params.json"), 'w') as f:
     f.write(json.dumps(params))
 
 ts = pyslim.recapitate(
