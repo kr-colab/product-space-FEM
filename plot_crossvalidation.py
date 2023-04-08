@@ -59,13 +59,13 @@ genetic_data = pd.read_csv(os.path.join(outdir, params['genetic_data'])).rename(
 data = inference.SpatialDivergenceData(spatial_data, genetic_data)
 data.normalise(min_xy=params["min_xy"], max_xy=params["max_xy"])
 
-if len(params['mesh']) == 1 and isinstance(params['mesh'], str):
-    mesh = fenics.Mesh(params['mesh'])
-elif len(params['mesh']) == 2:
-    mesh = fenics.UnitSquareMesh(*params['mesh'])
-else:
-    print(f"mesh must be an xml file name or (width, height), got {params['mesh']}")
-    sys.exit()
+try:
+    if isinstance(params['mesh'], str):
+        mesh = fenics.Mesh(params['mesh'])
+    else:
+        mesh = data.mesh(**params['mesh'])
+except:
+    raise ValueError(f"mesh must be an xml file name or (width, height), got {params['mesh']}")
 
 V = fenics.FunctionSpace(mesh, 'CG', 1)
 W = pf.ProductFunctionSpace(V)

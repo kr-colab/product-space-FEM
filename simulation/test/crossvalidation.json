@@ -1,7 +1,11 @@
 {
     "spatial_data": "stats.csv",
     "genetic_data": "pairstats.csv",
-    "mesh": [5, 4],
+    "mesh": {
+        "x": [0, 30],
+        "y": [0, 20],
+        "n": 4
+    },
     "folds": 2,
     "regularization": {
         "l2": [1, 1],

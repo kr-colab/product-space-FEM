@@ -3,6 +3,7 @@ import warnings
 import numpy as np
 import pandas as pd
 from scipy import optimize
+import fenics
 
 class SpatialDivergenceData:
 
@@ -216,4 +217,34 @@ class SpatialDivergenceData:
               f"    with mean MAD = {end_f}")
         return {'eps0': eps0, 'eps1': eps1, 'start': start_f, 'end': end_f}
         
+    def mesh(self, x, y, n):
+        """
+        Returns a RectangleMesh object in scaled coordinates
+        spanning the unscaled region [xmin, xmax] x [ymin, ymax],
+        making a roughly n x n mesh.
+
+        :param x: (xmin, xmax) tuple, in unscaled coordinates
+        :param y: (ymin, ymax) tuple, in unscaled coordinates
+        :param n: roughly, the number of subdivisions per side
+        """
+        minx, maxx = x
+        miny, maxy = y
+        if maxy > miny:
+            aspect_ratio = (maxx - minx) / (maxy - miny)
+        else:
+            aspect_ratio = 20
+        scaling = self.scaling
+        mesh = fenics.RectangleMesh(
+                fenics.Point(
+                    (minx - scaling['x']['shift']) / scaling['x']['scale'],
+                    (miny - scaling['y']['shift']) / scaling['y']['scale']
+                ),
+                fenics.Point(
+                    (maxx - scaling['x']['shift']) / scaling['x']['scale'],
+                    (maxy - scaling['y']['shift']) / scaling['y']['scale']
+                ),
+                int(n * np.sqrt(aspect_ratio)),
+                max(2, int(n / np.sqrt(aspect_ratio))),
+        )
+        return mesh
 

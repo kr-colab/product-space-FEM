@@ -22,7 +22,8 @@ def parse_args(args):
         help="""Path to JSON file with.
         should include:
             "spatial_data", "genetic_data" : file paths
-            "mesh" : either an XML file or a [width, height] of integers
+            "mesh" : either an XML file or a dictionary containing
+                {'x': (min, max), 'y': (min, max), 'n': mesh number}
             "folds": number of folds
             "regularization": {{ "l2": [a, b], "smoothing": [c, d] }}
                 where the second value for each is the *ratio* of regularization
@@ -186,14 +187,14 @@ if __name__ == "__main__":
                 "eps1": bdry_params['eps1']
         }
 
-
-    if len(params['mesh']) == 1 and isinstance(params['mesh'], str):
-        mesh = fenics.Mesh(params['mesh'])
-    elif len(params['mesh']) == 2:
-        mesh = fenics.UnitSquareMesh(*params['mesh'])
-    else:
-        print(f"mesh must be an xml file name or (width, height), got {params['mesh']}")
-        sys.exit()
+    try:
+        if isinstance(params['mesh'], str):
+            mesh = fenics.Mesh(params['mesh'])
+        else:
+            mesh = data.mesh(**params['mesh'])
+    except:
+        raise ValueError("mesh must be an xml file name or dictionary with "
+                         f"keys 'x', 'y', and 'n'; got {params['mesh']}")
     V = fenics.FunctionSpace(mesh, 'CG', 1)
     W = pf.ProductFunctionSpace(V)
 

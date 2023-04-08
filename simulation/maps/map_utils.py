@@ -54,7 +54,7 @@ def xyz_to_function(x, y, z, **kwargs):
     values of x and y. Will extrapolate outside of the given domain.
     """
     xx, yy, zz = xyz_to_array(x, y, z)
-    return interpolate.RegularGridInterpolator((xx, yy), zz.T, **kwargs, fill_value=None)
+    return interpolate.RegularGridInterpolator((xx, yy), zz.T, **kwargs, fill_value=None, bounds_error=False)
 
 
 def slope_layers(height, f=None):
