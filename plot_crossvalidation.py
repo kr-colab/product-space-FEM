@@ -82,7 +82,8 @@ for fold, axs in enumerate(axes):
     eqn.control.update(m_hats[-1])
     u_hat = eqn.solve()
     eqn.plot_control(axs=axs[:2])
-    u_hat.plot((0.5, 0.5), ax=axs[2])
+    xy0 = data.spatial_data.iloc[0][['x','y']].to_numpy()
+    u_hat.plot(xy0, ax=axs[2])
 
 plt.tight_layout()
 plt.savefig(solnfile)
