@@ -1,0 +1,163 @@
+---
+title: Empirical maps
+jupyter:
+  jupytext:
+    formats: 'ipynb,md'
+  kernelspec:
+    display_name: Python 3 (ipykernel)
+    language: python
+    name: python3
+---
+
+```{python}
+#| tags: []
+import os, sys, pickle
+import numpy as np
+import pandas as pd
+import json
+import pickle
+import product_fem as pf
+import fenics
+from PIL import Image
+from scipy import interpolate
+import matplotlib.pyplot as plt
+
+import maps
+import inference
+```
+
+```{python}
+#| tags: []
+# load spatial and genetic data
+simbase = "test/out_123"
+mapfile = f"{simbase}.spstats.csv"
+results_file = f"{simbase}_stats/rep456_xval_1/results.pkl"
+with open(os.path.join(f"{simbase}_stats", "slim_params.json"), "r") as pfile:
+    params = json.load(pfile)
+    for k in params:
+        if len(params[k]) == 1:
+            params[k] = params[k][0]
+
+with open(results_file, "rb") as rf:
+    results = pickle.load(rf)
+
+spatial_data = pd.read_csv(os.path.join(os.path.dirname(results_file), results['params']['spatial_data']))
+genetic_data = pd.read_csv(os.path.join(os.path.dirname(results_file), results['params']['genetic_data']))
+data = inference.SpatialDivergenceData(spatial_data, genetic_data)
+
+bias_map = Image.open(params['BIAS_MAP_FILE'])
+cov_map = Image.open(params['COVARIANCE_MAP_FILE'])
+habitat_map = Image.open(params['HABITAT_MAP_FILE'])
+empirical_maps = pd.read_csv(mapfile)
+width, height = bias_map.width / params['MAP_RESOLUTION'], bias_map.height / params['MAP_RESOLUTION']
+aspect_ratio = width/height
+size = (width + height)/2
+```
+
+```{python}
+#| tags: []
+params
+```
+
+Here are the images used to parameterize the simulation.
+
+```{python}
+#| tags: []
+fig, axes = plt.subplots(1, 3, figsize=(20, 9))
+for (im, lab), ax in zip(((bias_map, 'bias'), (cov_map, 'cov'), (habitat_map, 'habitat')), axes):
+    ax.imshow(im, extent=(0, width, 0, height))
+    ax.set_title(lab)
+```
+
+
+Here are the maps of average density, fecundity, and establishment
+that SLiM recorded during the simulation.
+First some helper functions to pull the information out of the pandas table it is in.
+
+
+```{python}
+#| tags: []
+fig, axes = plt.subplots(1, 3, figsize=(20, 9))
+for lab, ax in zip(("density", "fecundity", "establishment"), axes):
+    _, _, im = maps.xyz_to_array(empirical_maps['x'], empirical_maps['y'], empirical_maps[lab])
+    ax.imshow(im, extent=(0, width, 0, height))
+    ax.set_title(lab)
+```
+
+# fenics set-up
+
+```{python}
+#| tags: []
+results['params']
+```
+
+```{python}
+#| tags: []
+try:
+    if isinstance(results['params']['mesh'], str):
+        mesh = fenics.Mesh(results['params']['mesh'])
+    else:
+        mesh = data.mesh(**results['params']['mesh'])
+except:
+    raise ValueError(f"mesh must be an xml file name or (width, height), got {results['params']['mesh']}")
+
+V = fenics.FunctionSpace(mesh, 'CG', 1)
+W = pf.ProductFunctionSpace(V)
+
+boundary = pf.transforms.array_to_ProductFunction(results['boundary'], W)
+eqn = pf.HittingTimes(W, boundary, epsilon=results['params']['boundary']['epsilon'])
+```
+
+# Comparison to the (reverse-time) truth
+
+Now we'll compute the "truth" as expected based on the recorded maps,
+which we first need to project into our function space.
+
+```{python}
+#| tags: []
+density_fn = maps.xyz_to_function(empirical_maps['x'], empirical_maps['y'], empirical_maps['density'])
+density = pf.transforms.callable_to_Function(lambda x, y: density_fn([[x * size, y * size]]), V)
+fenics.plot(density).axes.set_title("empirical density");
+```
+
+```{python}
+establishment_fn = maps.xyz_to_function(empirical_maps['x'], empirical_maps['y'], empirical_maps['establishment'])
+establishment = pf.transforms.callable_to_Function(lambda x, y: establishment_fn([[x * size, y * size]]), V)
+fenics.plot(establishment).axes.set_title("empirical establishment");
+```
+
+```{python}
+fecundity_fn = maps.xyz_to_function(empirical_maps['x'], empirical_maps['y'], empirical_maps['fecundity'])
+fecundity = pf.transforms.callable_to_Function(lambda x, y: fecundity_fn([[x * size, y * size]]), V)
+fenics.plot(fecundity).axes.set_title("empirical fecundity");
+```
+
+```{python}
+log_total_fecundity = density.copy()
+log_total_fecundity.vector()[:] = np.log(0.1 + density.vector()[:] * fecundity.vector()[:])
+grad_log_total_fecundity = fenics.project(fenics.grad(log_total_fecundity))
+fenics.plot(grad_log_total_fecundity).axes.set_title("grad log total fecundity");
+```
+
+```{python}
+bias_fn_x = maps.xyz_to_function(empirical_maps['x'], empirical_maps['y'], empirical_maps['bias_x'])
+bias_fn_y = maps.xyz_to_function(empirical_maps['x'], empirical_maps['y'], empirical_maps['bias_y'])
+def bias_fn(x, y):
+    return np.array([bias_fn_x((x, y)), bias_fn_y((x, y))])
+bias = pf.transforms.vectorized_fn(V, dim=2, name='bias')
+bias.vector()[:] = pf.transforms.callable_to_array(
+    lambda x, y: bias_fn(x * size, y * size),
+    V,
+).flatten()
+```
+
+```{python}
+fenics.plot(bias).axes.set_title("forwards-time bias");
+```
+
+```{python}
+#| tags: []
+true_bias = fenics.project(2 * establishment * fecundity * (grad_log_total_fecundity - bias))
+fenics.plot(true_bias).axes.set_title("true (reverse-time) bias");
+```
+
