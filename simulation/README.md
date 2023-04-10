@@ -41,6 +41,11 @@ python3 plot_maps.py bias_bump/<base>.spatstats.csv
 <TODO write inference script>
 ```
 
+Afterwards, one can do:
+```
+quarto render compute_truth.qmd -P path/to/results.pkl -t path/to/compute_truth.html
+```
+
 Other things here:
 
 - `fast_slow.slim`: attempt at writing a script with constant population density but mortality-fecundity variation (DOES NOT CURRENTLY WORK)
