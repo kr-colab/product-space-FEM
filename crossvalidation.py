@@ -80,7 +80,7 @@ def parse_args(args):
     return parser.parse_args()
 
 
-def objective(params, boundary, data, W, tuning_params=None):
+def objective(params, boundary, data, W, results_file=None, tuning_params=None):
     if tuning_params is not None:
         l2_0, l2_1, smooth_0, smooth_1 = tuning_params
         params['regularization']['l2'] = [l2_0, l2_1]
@@ -132,9 +132,10 @@ def objective(params, boundary, data, W, tuning_params=None):
         print(f"Done: test error {test_error}")
 
 
-    print(f'saving file {results_file}')
-    with open(results_file, 'wb') as file:
-        pickle.dump(results, file, protocol=pickle.HIGHEST_PROTOCOL)
+    if results_file is not None:
+        print(f'saving file {results_file}')
+        with open(results_file, 'wb') as file:
+            pickle.dump(results, file, protocol=pickle.HIGHEST_PROTOCOL)
     
     return np.mean(errs)
 
@@ -213,11 +214,11 @@ if __name__ == "__main__":
         ]
         # minimize the objective over the space
         best = hyperopt.fmin(
-                lambda x: objective(params, boundary, data, W, tuning_params=x),
+                lambda x: objective(params, boundary, data, W, results_file=results_file, tuning_params=x),
                 space,
                 algo=hyperopt.tpe.suggest,
                 max_evals=args.max_evals,
         )
         print(f"Converged, with hyperopt.fmin, to {best}")
     else:
-        objective(params, boundary, data, W)
+        objective(params, boundary, data, W, results_file=results_file)
