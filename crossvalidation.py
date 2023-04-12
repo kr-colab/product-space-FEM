@@ -80,9 +80,26 @@ def parse_args(args):
     return parser.parse_args()
 
 
-def objective(params, boundary, data, W, results_file=None, tuning_params=None):
+class TrackError:
+    def __init__(self):
+        self.test_error = np.inf
+        self.updated = False
+    def update(self, test_error):
+        if test_error < self.test_error:
+            self.test_error = test_error
+            self.updated = True
+
+def objective(params, boundary, data, W, track_error = None, results_file=None, tuning_params=None):
     if tuning_params is not None:
+        best_params_file = os.path.join(os.path.dirname(results_file), 'best_params.json')
         l2_0, l2_1, smooth_0, smooth_1 = tuning_params
+        # bundle for writing to json
+        tuning_dict = {
+            'l2_0': l2_0, 
+            'l2_1': l2_1, 
+            'smooth_0': smooth_0, 
+            'smooth_1': smooth_1
+        }
         params['regularization']['l2'] = [l2_0, l2_1]
         params['regularization']['smoothing'] = [smooth_0, smooth_1]
 
@@ -132,12 +149,31 @@ def objective(params, boundary, data, W, results_file=None, tuning_params=None):
         print(f"Done: test error {test_error}")
 
 
-    if results_file is not None:
+    # get mean test error
+    mean_errs = np.mean(errs)
+
+    if track_error is not None:
+        # update if new test was better
+        track_error.update(mean_errs)
+
+    if track_error is not None and track_error.updated:
         print(f'saving file {results_file}')
         with open(results_file, 'wb') as file:
             pickle.dump(results, file, protocol=pickle.HIGHEST_PROTOCOL)
-    
-    return np.mean(errs)
+        
+        print(f'saving new best params to {best_params_file}')
+        tuning_dict.update({"mean_error": track_error.test_error})
+        with open(best_params_file, 'w') as file:
+            json.dump(tuning_dict, file)
+        track_error.updated = False
+
+    if tuning_params is None:
+        print(f'saving file {results_file}')
+        with open(results_file, 'wb') as file:
+            pickle.dump(results, file, protocol=pickle.HIGHEST_PROTOCOL)
+
+        
+    return mean_errs
 
 
 if __name__ == "__main__":
@@ -213,8 +249,9 @@ if __name__ == "__main__":
             hyperopt.hp.lognormal('smooth_1', args.smooth[0], args.smooth[1])
         ]
         # minimize the objective over the space
+        track_error = TrackError()
         best = hyperopt.fmin(
-                lambda x: objective(params, boundary, data, W, results_file=results_file, tuning_params=x),
+                lambda x: objective(params, boundary, data, W, track_error = track_error, results_file=results_file, tuning_params=x),
                 space,
                 algo=hyperopt.tpe.suggest,
                 max_evals=args.max_evals,
