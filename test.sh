@@ -20,6 +20,9 @@ for j in $BASEX*/xval_params.json;
 do
     python crossvalidation.py --json $j --max_iter 5
 done
+
+python crossvalidation.py -H -e 1 -i 1 --json `ls $BASEX*/xval_params.json | head -n1` --max_iter 5
+
 for p in $BASEX*/*.pkl
 do
     python plot_crossvalidation.py $p
