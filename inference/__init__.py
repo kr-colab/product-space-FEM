@@ -38,9 +38,12 @@ class SpatialDivergenceData:
         }
 
     def _normalise(self, x, x0, x1, shift=True):
-        # beware! acts on x in place.
-        b = np.min(x) - x0 if shift else 0
+        """
+        Shifts `x` **in place** so that its min is x0 and its max is x1
+        (unless shift=False, in which case it divides so its max-min is equal to x1-x0).
+        """
         a = (np.max(x) - np.min(x)) / (x1 - x0)
+        b = np.min(x) - x0 * a if shift else 0
         x -= b
         x /= a
         return a, b
@@ -49,8 +52,8 @@ class SpatialDivergenceData:
         x_range = np.max(self.spatial_data['x']) - np.min(self.spatial_data['x'])
         y_range = np.max(self.spatial_data['y']) - np.min(self.spatial_data['y'])
         min_x = min_y = min_xy
-        max_x = max_xy * min(1, x_range / y_range)
-        max_y = max_xy * min(1, y_range / x_range)
+        max_x = min_xy + (max_xy-min_xy) * min(1, x_range / y_range)
+        max_y = min_xy + (max_xy-min_xy) * min(1, y_range / x_range)
         a, b = self._normalise(self.spatial_data.loc[:, 'x'], min_x, max_x)
         self.scaling['x']['shift'] = b
         self.scaling['x']['scale'] = a

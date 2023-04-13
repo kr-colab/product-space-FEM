@@ -8,6 +8,7 @@ BASE1="test/out_${SEED1}"
 BASE2="simulation/${BASE1}_stats/rep${SEED2}"
 BASEX="${BASE2}_xval_"
 
+PYTHONPATH="$PWD:$PWD/simulation:$PYTHONPATH"
 pushd simulation
 rm -rf test/out_*
 slim -d 'OUTDIR="test"' -s $SEED1 fecundity_regulation.slim
@@ -22,6 +23,9 @@ done
 for p in $BASEX*/*.pkl
 do
     python plot_crossvalidation.py $p
+    q=${p%pkl}truth.qmd
+    cp simulation/compute_truth.qmd $q
+    quarto render $q -P results_file:$(basename $p)
 done
 
 echo "All done! Produced:"
