@@ -15,7 +15,7 @@ execute:
 #| tags: [parameters]
 # default values; change these here or like
 # quarto render compute_truth.qmd -P results_file:path/to/results.pkl
-results_file = f"test/out_123_stats/rep456_xval_1/results.pkl"
+results_file = f"results.pkl"
 ```
 
 ```{python}
@@ -38,10 +38,12 @@ import inference
 ```{python}
 #| tags: []
 # load spatial and genetic data
-bdir = os.path.dirname(results_file)
+bdir = os.path.dirname(os.path.abspath(results_file))
 while len(bdir) > 0 and not os.path.exists(os.path.join(bdir, "slim_params.json")):
     bdir = os.path.dirname(bdir)
-with open(os.path.join(bdir, "slim_params.json"), "r") as pfile:
+jfile = os.path.join(bdir, "slim_params.json")
+assert os.path.exists(jfile), f"No such file {jfile}"
+with open(jfile, "r") as pfile:
     params = json.load(pfile)
     for k in params:
         if len(params[k]) == 1:
@@ -54,9 +56,9 @@ spatial_data = pd.read_csv(os.path.join(os.path.dirname(results_file), results['
 genetic_data = pd.read_csv(os.path.join(os.path.dirname(results_file), results['params']['genetic_data']))
 data = inference.SpatialDivergenceData(spatial_data, genetic_data)
 
-bias_map = Image.open(params['BIAS_MAP_FILE'])
-cov_map = Image.open(params['COVARIANCE_MAP_FILE'])
-habitat_map = Image.open(params['HABITAT_MAP_FILE'])
+bias_map = Image.open(os.path.join(bdir, params['BIAS_MAP_FILE']))
+cov_map = Image.open(os.path.join(bdir, params['COVARIANCE_MAP_FILE']))
+habitat_map = Image.open(os.path.join(bdir, params['HABITAT_MAP_FILE']))
 
 mapfile = f"{bdir.removesuffix('_stats')}.spstats.csv"
 empirical_maps = pd.read_csv(mapfile)
@@ -104,14 +106,8 @@ results['params']
 
 ```{python}
 #| tags: []
-try:
-    if isinstance(results['params']['mesh'], str):
-        mesh = fenics.Mesh(results['params']['mesh'])
-    else:
-        mesh = data.mesh(**results['params']['mesh'])
-except:
-    raise ValueError(f"mesh must be an xml file name or (width, height), got {results['params']['mesh']}")
-
+data.normalise(min_xy=results['params']['min_xy'], max_xy=results['params']['max_xy'])
+mesh = data.mesh(**results['params']['mesh'])
 V = fenics.FunctionSpace(mesh, 'CG', 1)
 W = pf.ProductFunctionSpace(V)
 

@@ -12,7 +12,12 @@ import inference
 def parse_args(args):
     # Instantiate the parser
     parser = argparse.ArgumentParser(
-        description="Regularization tuning of Product Space FEM using cross validation."
+        description="""Regularization tuning of Product Space FEM using cross validation.
+        If the `-H` flag is passed, does *many* rounds of crossvalidation to obtain
+        hopefully optimal values for the four regularization parameters (TODO SAY WHAT);
+        without the flag, just does one round of crossvalidation at the provided parameters.
+        Outputs to TODO DOCUMENT.
+        """
     )
 
     parser.add_argument(
