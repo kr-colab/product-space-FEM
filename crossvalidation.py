@@ -85,9 +85,42 @@ def parse_args(args):
     return parser.parse_args()
 
 
-def objective(params, boundary, data, W, results_file=None, tuning_params=None):
+class TrackError:
+    def __init__(self, hyperopt):
+        """
+        hyperopt: boolean, whether or not we are using hyperopt
+        """
+        self.hyperopt = hyperopt
+        self.test_error = np.inf
+
+    def update(self, test_error, results, results_file, best_params_file = None, tuning_dict = None):
+        if test_error < self.test_error:
+            self.test_error = test_error
+
+            print(f'saving file {results_file}')
+            with open(results_file, 'wb') as file:
+                pickle.dump(results, file, protocol=pickle.HIGHEST_PROTOCOL)
+
+            if tuning_dict is not None:
+                print(f'saving new best params to {best_params_file}')
+                tuning_dict.update({"mean_error": track_error.test_error})
+                with open(best_params_file, 'w') as file:
+                    json.dump(tuning_dict, file)
+
+
+def objective(params, boundary, data, W, track_error, results_file=None, tuning_params=None):
+    tuning_dict = None
+    best_params_file = None
     if tuning_params is not None:
+        best_params_file = f"{results_file}.params.json"
         l2_0, l2_1, smooth_0, smooth_1 = tuning_params
+        # bundle for writing to json
+        tuning_dict = {
+            'l2_0': l2_0, 
+            'l2_1': l2_1, 
+            'smooth_0': smooth_0, 
+            'smooth_1': smooth_1
+        }
         params['regularization']['l2'] = [l2_0, l2_1]
         params['regularization']['smoothing'] = [smooth_0, smooth_1]
 
@@ -137,12 +170,12 @@ def objective(params, boundary, data, W, results_file=None, tuning_params=None):
         print(f"Done: test error {test_error}")
 
 
-    if results_file is not None:
-        print(f'saving file {results_file}')
-        with open(results_file, 'wb') as file:
-            pickle.dump(results, file, protocol=pickle.HIGHEST_PROTOCOL)
-    
-    return np.mean(errs)
+    # get mean test error
+    mean_errs = np.mean(errs)
+
+    track_error.update(mean_errs, results, results_file, best_params_file, tuning_dict)
+
+    return mean_errs
 
 
 if __name__ == "__main__":
@@ -209,6 +242,7 @@ if __name__ == "__main__":
     bdry = data.boundary_fn(eps0=params['boundary']['eps0'], eps1=params['boundary']['eps1'])
     boundary = pf.transforms.callable_to_ProductFunction(bdry, W)
 
+    track_error = TrackError(args.use_hyperopt)
     if args.use_hyperopt:
         # define a search space
         space = [
@@ -219,11 +253,11 @@ if __name__ == "__main__":
         ]
         # minimize the objective over the space
         best = hyperopt.fmin(
-                lambda x: objective(params, boundary, data, W, results_file=results_file, tuning_params=x),
+                lambda x: objective(params, boundary, data, W, track_error = track_error, results_file=results_file, tuning_params=x),
                 space,
                 algo=hyperopt.tpe.suggest,
                 max_evals=args.max_evals,
         )
         print(f"Converged, with hyperopt.fmin, to {best}")
     else:
-        objective(params, boundary, data, W, results_file=results_file)
+        objective(params, boundary, data, W, track_error = track_error, results_file=results_file)
