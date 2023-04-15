@@ -14,14 +14,17 @@ rule all:
     input:
         [f"{base_name}_{o}/results.pkl" for o in outs]
 
-rule cross_vall:
+rule cross_val:
     input:
         base_name + "_{o}/xval_params.json"
     output:
         base_name + "_{o}/results.pkl"
+    resources:
+        runtime = 720,
+        mem_mb = 10000
     shell:
         """
-            python crossvalidation.py {input}
+            python crossvalidation.py --json {input}
         """
 
 rule stats:

@@ -5,6 +5,8 @@ import json
 import numpy as np
 
 usage = f"""
+{' '.join(sys.argv)}
+
 Usage:
     {sys.argv[0]} (json file with parameters in) (n_l2) (min_l2) (max_l2) (n_smoothness) (min_smoothness) (max_smoothness) (basename for spatial and genetic data files) [start]
 where :
@@ -22,29 +24,32 @@ if len(sys.argv) != 8 and len(sys.argv) != 9 and len(sys.argv) != 10:
     print(usage)
     sys.exit()
 
-paramsfile = sys.argv[1]
-n_l2, min_l2, max_l2 = int(sys.argv[2]), float(sys.argv[3]), float(sys.argv[4])
-n_sm, min_sm, max_sm = int(sys.argv[5]), float(sys.argv[6]), float(sys.argv[7])
+try:
+    paramsfile = sys.argv[1]
+    n_l2, min_l2, max_l2 = int(sys.argv[2]), float(sys.argv[3]), float(sys.argv[4])
+    n_sm, min_sm, max_sm = int(sys.argv[5]), float(sys.argv[6]), float(sys.argv[7])
 
-outdir = os.path.dirname(paramsfile)
-with open(paramsfile, 'r') as f:
-    params = json.load(f)
+    outdir = os.path.dirname(paramsfile)
+    with open(paramsfile, 'r') as f:
+        params = json.load(f)
 
-outbase = ""
+    outbase = ""
 
-if len(sys.argv) > 8:
-    sgbase = sys.argv[8]
-    fname = os.path.basename(sgbase)
-    sfile = os.path.join("..", f"{fname}.stats.csv")
-    gfile = os.path.join("..", f"{fname}.pairstats.csv")
-    params['spatial_data'] = sfile
-    params['genetic_data'] = gfile
-    outbase = f"{sgbase}_"
+    if len(sys.argv) > 8:
+        sgbase = sys.argv[8]
+        fname = os.path.basename(sgbase)
+        sfile = os.path.join("..", f"{fname}.stats.csv")
+        gfile = os.path.join("..", f"{fname}.pairstats.csv")
+        params['spatial_data'] = sfile
+        params['genetic_data'] = gfile
+        outbase = f"{sgbase}_"
 
-start = 0
-if len(sys.argv) > 9:
-    start = int(sys.argv[9])
-
+    start = 0
+    if len(sys.argv) > 9:
+        start = int(sys.argv[9])
+except:
+    print(usage)
+    sys.exit()
 
 range_l2 = np.linspace(min_l2, max_l2, n_l2)
 range_sm = np.linspace(min_sm, max_sm, n_sm)
@@ -65,3 +70,4 @@ for l2 in range_l2:
             json.dump(params, f, indent=3)
         j += 1
 
+print(f"Done with setup; next would be at {j}")
