@@ -140,6 +140,7 @@ class InverseProblem:
             
             print(self.compute_loss(control), l2err[-1], l2reg[-1], smreg[-1])
             
+        print("loss", "error", "l2reg", "smoothing")
         fun = self.loss_and_grad
         jac = True
         options = kwargs.get('options', {})
