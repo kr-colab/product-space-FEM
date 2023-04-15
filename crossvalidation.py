@@ -173,7 +173,7 @@ def objective(params, boundary, data, W, track_error, results_file=None, tuning_
     # get mean test error
     mean_errs = np.mean(errs)
 
-    track_error.update(mean_errs, results, results_file, best_params_file, tuning_dict)
+    track_error.update(test_error=mean_errs, results=results, results_file=results_file, best_params_file=best_params_file, tuning_dict=tuning_dict)
 
     return mean_errs
 
