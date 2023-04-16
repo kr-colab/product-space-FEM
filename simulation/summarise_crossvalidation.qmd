@@ -27,7 +27,7 @@ result_files = glob.glob(f"{basename}_xval_*/results.pkl")
 print(f"Reporting on the {len(result_files)} directories of the form {basename}_xval_* having a results.pkl file.")
 if len(result_files) < len(all_xdirs):
     print(f"({len(all_xdirs) - len(result_files)} such directories do not have the result file)")
-assert len(result_files) > 0, f"None of the {len(all_xdirs)} directoris of the form {basename}_xval_* have a results.pkl file."
+assert len(result_files) > 0, f"None of the {len(all_xdirs)} directories of the form {basename}_xval_* have a results.pkl file."
 ```
 
 ```{python}
@@ -49,10 +49,10 @@ df = pd.DataFrame({
     "dir" : xdirs,
     "l2": [results[x]["params"]["regularization"]["l2"][0] for x in xdirs],
     "smoothing": [results[x]["params"]["regularization"]["smoothing"][0] for x in xdirs],
-    "test_error": [np.mean([results[x][j]["test_error"] for j in range(configs[x]['folds'])]) for x in xdirs],
+    "test_error": [np.mean([results[x][j]["test_error"] for j in range(configs[x]['folds']) if j in results[x]]) for x in xdirs],
 }).set_index("dir")
 for k in ['l2err', 'l2reg', 'smreg']:
-    df[k] = [np.mean([results[x][j]["losses"][k][-1] for j in range(configs[x]['folds'])]) for x in xdirs]
+    df[k] = [np.mean([results[x][j]["losses"][k][-1] for j in range(configs[x]['folds']) if j in results[x]]) for x in xdirs]
 ```
 
 Here is the range of crossvalidation parameters considered (left)
@@ -64,6 +64,8 @@ for ax, (j, k) in zip(axes, (('l2', 'smoothing'), ("l2", "test_error"), ("smooth
     ax.scatter(df[j], df[k])
     ax.set_xlabel(j)
     ax.set_ylabel(k)
+
+plt.tight_layout()
 ```
 
 And, here is how various things are distributed across the range of values.

@@ -6,7 +6,7 @@
         "y": [0, 20],
         "n": 10
     },
-    "folds": 2,
+    "folds": 5,
     "regularization": {
         "l2": [1, 1],
         "smoothing": [1, 1]
