@@ -27,8 +27,18 @@ and then activate it. The tests are at
 python3 -m pytest tests
 ```
 
-A very simple test worflow (with all parameters set so it runs fast)
+A very simple test workflow (with all parameters set so it runs pretty fast)
 can be run with:
 ```
 ./test.sh
 ```
+
+## Troubleshooting
+
+In some systems, `quarto` fails due to the temporary directories not existing,
+with an error like `ERROR: PermissionDenied: Permission denied (os error 13), mkdir '/run/user/1960/jt'`.
+As a workaround on linux-based systems, run
+```
+export XDG_RUNTIME_DIR=$(mktemp -d)
+```
+

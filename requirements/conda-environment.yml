@@ -16,3 +16,5 @@ dependencies:
   - hyperopt 
   - pyslim>=1.0.1  
   - ffmpeg
+  - quarto
+  - papermill
