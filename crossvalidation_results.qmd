@@ -1,0 +1,203 @@
+---
+title: Loss history
+jupyter: python3
+---
+
+```{python}
+#| tags: []
+import os, sys, pickle
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+import product_fem as pf
+import fenics
+import inference
+rng = np.random.default_rng()
+```
+
+```{python}
+#| tags: [parameters]
+# default values; change these here or like
+# quarto render crossvalidation_results.qmd -P results_file:path/to/results.pkl
+results_file = "simulation/density_bump/out_12345_stats/rep899640_smreg_n5_0/results.pkl"
+```
+
+```{python}
+#| tags: []
+with open(results_file, 'rb') as f:
+    results = pickle.load(f)
+
+params = results['params']
+
+losses = [pd.DataFrame(results[fold]['losses']) for fold in range(params['folds'])]
+test_errors = np.array([results[fold]['test_error'] for fold in range(params['folds'])])
+```
+
+
+
+```{python}
+#| tags: []
+fig, axes = plt.subplots(params['folds'], 2, figsize=(8, params['folds'] * 2), sharex=True)
+for k, (ax, df) in enumerate(zip(axes[:,0], losses)):
+    df.plot(ax=ax)
+    ax.set_ylabel("loss")
+    ax.text(0.5, 0.9, f"fold {k}", transform=ax.transAxes)
+
+ax.set_xlabel("optimize() iteration")
+
+for k, (ax, df) in enumerate(zip(axes[:,1], losses)):
+    df.plot(ax=ax, legend=(k == 0), ylim=np.array([-0.05, 1.2]) * max(df.iloc[int(df.shape[0]/2):,:].max()))
+    ax.set_ylabel("loss")
+
+fig.subplots_adjust(hspace=0)
+ax.set_xlabel("optimize() iteration")
+plt.tight_layout()
+```
+
+```{python}
+#| tags: []
+### BEGIN SETUP FROM crossvalidation.py
+# need this to plot the solution
+outdir = os.path.dirname(results_file)
+spatial_data = pd.read_csv(os.path.join(outdir, params['spatial_data']))
+genetic_data = pd.read_csv(os.path.join(outdir, params['genetic_data']))
+data = inference.SpatialDivergenceData(spatial_data, genetic_data)
+data.normalise(min_xy=params["min_xy"], max_xy=params["max_xy"])
+
+mesh = data.mesh(**params['mesh'])
+V = fenics.FunctionSpace(mesh, 'CG', 1)
+W = pf.ProductFunctionSpace(V)
+
+boundary = pf.transforms.array_to_ProductFunction(results['boundary'], W)
+eqn = pf.HittingTimes(W, boundary, epsilon=params['boundary']['epsilon'])
+### END STUFF COPIED FROM crossvalidation.py
+```
+
+# The mesh
+
+Here's the mesh, and our sampling locations:
+
+```{python}
+#| tags: []
+ax = fenics.plot(mesh)[0].axes
+ax.scatter(data.spatial_data['x'], data.spatial_data['y'])
+ax.set_xlabel("eastings"); ax.set_ylabel("northings");
+```
+
+# Solutions
+
+Here's the solutions across all the folds at the slice
+of the first sampling location:
+
+```{python}
+#| tags: []
+xy0 = data.spatial_data.iloc[0][['x','y']].to_numpy()
+
+fig, axes = plt.subplots(params['folds'], 3, figsize=(8, 2 * params['folds']), sharex='col', sharey='col')
+for fold, axs in enumerate(axes):
+    m_hats = results[fold]['m_hats']
+    eqn.control.update(m_hats[-1])
+    u_hat = eqn.solve()
+    eqn.plot_control(axs=axs[:2])
+    u_hat.plot(xy0, ax=axs[2])
+
+for ax in axs:
+    ax.set_xlabel("eastings")
+
+# plt.tight_layout()
+fig.subplots_adjust(hspace=0)
+```
+
+# Residuals
+
+(TODO: this takes a while; we should cache it)
+
+```{python}
+gd = data.genetic_data
+sd = data.spatial_data
+predfile = os.path.join(outdir, "predicted.csv")
+if not os.path.isfile(predfile):
+    predvals = [u_hat(sd.loc[a,['x','y']],sd.loc[b,['x','y']]) for a, b in zip(gd['name1'], gd['name2'])]
+    np.savetxt(predfile, predvals)
+gd['predicted'] = np.loadtxt(predfile)
+```
+
+```{python}
+#| tags: []
+ax = gd.plot.scatter('divergence', 'predicted')
+ax.set_xlabel("observed");
+```
+
+# Slices
+
+```{python}
+#| tags: []
+sub_gd = gd.loc[np.logical_or(gd['name1'] == k, gd['name2'] == k),:]
+other = [a if a != k else b for a, b in zip(sub_gd['name1'], sub_gd['name2'])]
+```
+
+```{python}
+#| tags: []
+num_slices = 8
+fold = 0
+m_hats = results[fold]['m_hats']
+eqn.control.update(m_hats[-1])
+u_hat = eqn.solve()
+fig, axes = plt.subplots(num_slices, 2, figsize=(12, 4 * num_slices), sharex=True, sharey=True)
+pargs = {'range_min': min(np.min(u_hat.array), np.min(gd['divergence'])),
+         'range_max': max(np.min(u_hat.array), np.max(gd['divergence']))}
+         
+for (ax0, ax1), k in zip(axes, rng.choice(sd.index, num_slices)):
+    xy0 = sd.loc[k, ['x','y']].to_numpy()
+    sub_gd = gd.loc[np.logical_or(gd['name1'] == k, gd['name2'] == k),:]
+    other = [a if a != k else b for a, b in zip(sub_gd['name1'], sub_gd['name2'])]
+    pts = ax0.scatter(sd.loc[other,'x'], sd.loc[other,'y'],
+                c=sub_gd['divergence'], vmin=pargs['range_min'], vmax=pargs['range_max'])
+    fig.colorbar(pts)
+    ax0.scatter(*xy0, marker="*", s=15**2, edgecolors='white', alpha=0.6)
+    ax0.set_title(f"{k}, observed")
+    u_hat.plot(xy0, ax=ax1, **pargs)
+    ax1.set_title(f"{k}, fitted")
+```
+
+# Isolation by distance in the real data
+
+Here's the real data, looked at in a few ways:
+
+```{python}
+#| tags: []
+gd['x1'] = sd.loc[gd['name1'],'x'].to_numpy()
+gd['xydist'] = np.sqrt((sd.loc[gd['name1'],'x'].to_numpy() - sd.loc[gd['name2'],'x'].to_numpy())**2
+                       + (sd.loc[gd['name1'],'y'].to_numpy() - sd.loc[gd['name2'],'y'].to_numpy())**2)
+```
+
+```{python}
+#| tags: []
+fig, ax = plt.subplots(figsize=(10,6))
+gd.plot.scatter('xydist', 'divergence', c='x1', ax=ax)
+ax.set_xlabel('geographic distance')
+ax.set_title("observed data, colored by x1");
+```
+
+```{python}
+#| tags: []
+num_slices = 8
+fold = 0
+m_hats = results[fold]['m_hats']
+eqn.control.update(m_hats[-1])
+u_hat = eqn.solve()
+fig, axes = plt.subplots(num_slices, 1, figsize=(10, 4 * num_slices), sharex=True, sharey=True)
+pargs = {'range_min': np.min(gd['divergence']),
+         'range_max': np.max(gd['divergence'])}
+         
+for ax, k in zip(axes, rng.choice(sd.index, num_slices)):
+    sub_gd = gd.loc[np.logical_or(gd['name1'] == k, gd['name2'] == k),:]
+    other = [a if a != k else b for a, b in zip(sub_gd['name1'], sub_gd['name2'])]
+    other_x1 = sd.loc[other, 'x']
+    pts = ax.scatter(sub_gd['xydist'], sub_gd['divergence'], c=other_x1)
+    ax.set_xlabel('geographic distance')
+    ax.set_title(f"observed data for {k}, colored by x1");
+    fig.colorbar(pts)
+```
+
