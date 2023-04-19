@@ -64,7 +64,17 @@ for ax, (j, k) in zip(axes, (('l2', 'smoothing'), ("l2", "test_error"), ("smooth
     ax.scatter(df[j], df[k])
     ax.set_xlabel(j)
     ax.set_ylabel(k)
-
+plt.tight_layout()
+```
+And, a log scale:
+```{python}
+fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+for ax, (j, k) in zip(axes, (('l2', 'smoothing'), ("l2", "test_error"), ("smoothing", "test_error"))):
+    ax.scatter(df[j], df[k])
+    ax.set_xlabel(j)
+    ax.set_ylabel(k)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
 plt.tight_layout()
 ```
 

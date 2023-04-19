@@ -14,7 +14,7 @@ from .transforms import sig_to_cov
 def fenics_plot(f, **kwargs):
     assert isinstance(f, fx.Function)
     ax = plt.gca()
-    ax = fx.plot(f).axes
+    ax = fx.plot(f, **kwargs).axes
     return ax
 
 def covariance_plot(sig, **kwargs):
