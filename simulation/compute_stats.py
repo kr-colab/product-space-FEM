@@ -85,60 +85,80 @@ sample_nodes = np.array([
 lll = [letters[k] for k in range(len(letters))]
 names = ["".join([a, b, c]) for a in rng.permuted(lll) for b in rng.permuted(lll) for c in rng.permuted(lll)][:len(samples)]
 
-locs = pd.DataFrame({
+sd = pd.DataFrame({
     "name" : names,
     "x" : ts.individual_locations[samples, 0],
     "y" : ts.individual_locations[samples, 1],
 }).set_index("name")
 
 # heterozygosity
-locs["het"] = ts.diversity(sample_nodes, mode='site')
+sd["het"] = ts.diversity(sample_nodes, mode='site')
 
 # write out text file
-locs.to_csv(f"{repname}.stats.csv")
+sd.to_csv(f"{repname}.stats.csv")
 
 ###
 # pairwise stats
 
-pairs = pd.DataFrame(
+gd = pd.DataFrame(
             np.array(
-                [[a, b] for a in locs.index for b in locs.index if a <= b]
+                [[a, b] for a in sd.index for b in sd.index if a <= b]
             ),
             columns=["name1", "name2"],
 )
-pairs["divergence"] = np.nan
+gd["divergence"] = np.nan
 
 plist = []
-nlist = list(locs.index)
-for a, b in zip(pairs["name1"], pairs["name2"]):
+nlist = list(sd.index)
+for a, b in zip(gd["name1"], gd["name2"]):
     plist.append((nlist.index(a), nlist.index(b)))
 
-pairs["divergence"] = ts.divergence(
+gd["divergence"] = ts.divergence(
         sample_sets = sample_nodes,
         indexes = plist,
         mode = 'site',
 )
 
 # write out text file
-pairs.to_csv(f"{repname}.pairstats.csv")
+gd.to_csv(f"{repname}.pairstats.csv")
 
 # make plot of IBD
-i1 = np.array([nlist.index(i) for i in pairs['name1']])
-i2 = np.array([nlist.index(i) for i in pairs['name2']])
-pairs['dist'] = np.sqrt(
+i1 = np.array([nlist.index(i) for i in gd['name1']])
+i2 = np.array([nlist.index(i) for i in gd['name2']])
+gd['dist'] = np.sqrt(
     (ts.individual_locations[i1, 0] - ts.individual_locations[i2, 0])**2
     + 
     (ts.individual_locations[i1, 1] - ts.individual_locations[i2, 1])**2
 )
 
 fig, ax = plt.subplots(figsize=(10, 6))
-ax.scatter(pairs['dist'], pairs['divergence'])
+ax.scatter(gd['dist'], gd['divergence'])
 ax.set_xlabel("geographic distance")
 ax.set_ylabel("genetic distance")
 ax.set_title(repname)
 plt.tight_layout()
 
 fig.savefig(f"{repname}.ibd.png")
+plt.close(fig)
 
+# make images of per-individual divergences
+subdir = f"{repname}_ibd"
+if not os.path.exists(subdir):
+    os.makedirs(subdir)
+
+for focal in sd.index:
+    subfile = os.path.join(subdir, f"{focal}.ibd.png")
+    fig, ax = plt.subplots(figsize=(6, 6))
+    sub_gd = gd.loc[np.logical_or(gd['name1'] == focal, gd['name2'] == focal),:]
+    other = [a if a != focal else b for a, b in zip(sub_gd['name1'], sub_gd['name2'])]
+    ax.scatter(sd.loc[other,"x"],
+               sd.loc[other,"y"],
+               c=sub_gd['divergence'],
+               s=100 * (sub_gd['divergence'] - 0.9 * min(sub_gd['divergence'])) / (max(sub_gd['divergence']) - min(sub_gd['divergence'])),
+               vmin=min(gd['divergence']),
+               vmax=max(gd['divergence'])
+    )
+    plt.savefig(subfile)
+    plt.close(fig)
 
 print(f"All done with {basedir} =) =)")
