@@ -158,6 +158,7 @@ for focal in sd.index:
                vmin=min(gd['divergence']),
                vmax=max(gd['divergence'])
     )
+    ax.set_aspect('equal')
     plt.savefig(subfile)
     plt.close(fig)
 
