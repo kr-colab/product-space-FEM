@@ -15,19 +15,26 @@ outs, = glob_wildcards(base_name + "_{iter}/xval_params.json")
 
 rule all:
     input:
-        [f"{base_name}_{o}/results.pkl" for o in outs]
+        [f"{base_name}_{o}/solutions.png" for o in outs] + [f"{base_name}_{o}/results.crossvalidation_results.html" for o in outs]
 
-rule test_cross_val:
+rule summarise_single_xval:
     input:
-        "simulation/density_bump/out_12345_stats/rep899640_n10_xval_58/xval_params.json"
+        base_name + "_{o}/results.pkl"
     output:
-        "simulation/density_bump/out_12345_stats/rep899640_n10_xval_58/results.pkl"
-    resources:
-        runtime = 720,
-        mem_mb = 10000
+        base_name + "_{o}/results.crossvalidation_results.html"
     shell:
         """
-            python crossvalidation.py --json {input}
+            ./crossvalidation_results.sh {input}
+        """
+
+rule plot_xval:
+    input:
+        base_name + "_{o}/results.pkl"
+    output:
+        base_name + "_{o}/solutions.png"
+    shell:
+        """
+            python plot_crossvalidation.py {input}
         """
 
 rule cross_val:

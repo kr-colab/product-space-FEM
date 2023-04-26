@@ -1,8 +1,12 @@
 # example command:
-#  snakemake -c6  -C seed=123 base_dir=bias_bump --profile ~/.config/snakemake/talapas/
+#  snakemake -C seed=123 base_dir=bias_bump --profile ~/.config/snakemake/talapas/
 
-base_dir = config['base_dir'] # can set with --config base_dir="..."
-seed = config['seed']
+base_dir = "not_set"
+if "base_dir" in config:
+    base_dir = config['base_dir'] # can set with --config base_dir="..."
+seed = 123
+if 'seed' in config:
+    seed = config['seed']
 
 rule all:
     input:
@@ -15,7 +19,7 @@ rule run_slim:
         f"{base_dir}/out_{seed}.trees"
     resources:
         runtime = 2880,
-        mem_mb = 6000
+        mem_mb = 10000
     shell:
         f"""
             echo "working in {base_dir}"
