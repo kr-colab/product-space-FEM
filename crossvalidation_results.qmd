@@ -92,9 +92,18 @@ of the first sampling location:
 
 ```{python}
 #| tags: []
+mcoords = mesh.coordinates()
+xlim = [np.min(mcoords[:,0]), np.max(mcoords[:,0])]
+ylim = [np.min(mcoords[:,1]), np.max(mcoords[:,1])]
+asp = (ylim[1] - ylim[0]) / (xlim[1] - xlim[0])
 xy0 = data.spatial_data.iloc[0][['x','y']].to_numpy()
 
-fig, axes = plt.subplots(params['folds'], 3, figsize=(8, 2 * params['folds']), sharex='col', sharey='col')
+if asp > 0.25:
+    fig, axes = plt.subplots(params['folds'], 3, figsize=(8, 2 * params['folds']), sharex='col', sharey='col')
+else:
+    fig, axes = plt.subplots(params['folds']*3, 1, figsize=(8, 4 * params['folds']), sharex='col', sharey='col')
+    axes = axes.reshape((params['folds'],3))
+
 for fold, axs in enumerate(axes):
     m_hats = results[fold]['m_hats']
     eqn.control.update(m_hats[-1])
@@ -144,7 +153,11 @@ fold = 0
 m_hats = results[fold]['m_hats']
 eqn.control.update(m_hats[-1])
 u_hat = eqn.solve()
-fig, axes = plt.subplots(num_slices, 2, figsize=(12, 4 * num_slices), sharex=True, sharey=True)
+if asp > 0.25:
+    fig, axes = plt.subplots(num_slices, 2, figsize=(12, 4 * num_slices), sharex=True, sharey=True)
+else:
+    fig, axes = plt.subplots(num_slices*2, 1, figsize=(12, 4 * num_slices), sharex=True, sharey=True)
+    axes = axes.reshape((num_slices, 2))
 pargs = {'range_min': min(np.min(u_hat.array), np.min(gd['divergence'])),
          'range_max': max(np.min(u_hat.array), np.max(gd['divergence']))}
          
