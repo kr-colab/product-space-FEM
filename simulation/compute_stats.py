@@ -151,13 +151,14 @@ for focal in sd.index:
     fig, ax = plt.subplots(figsize=(6, 6))
     sub_gd = gd.loc[np.logical_or(gd['name1'] == focal, gd['name2'] == focal),:]
     other = [a if a != focal else b for a, b in zip(sub_gd['name1'], sub_gd['name2'])]
-    ax.scatter(sd.loc[other,"x"],
+    s = ax.scatter(sd.loc[other,"x"],
                sd.loc[other,"y"],
                c=sub_gd['divergence'],
                s=100 * (sub_gd['divergence'] - 0.9 * min(sub_gd['divergence'])) / (max(sub_gd['divergence']) - min(sub_gd['divergence'])),
                vmin=min(gd['divergence']),
                vmax=max(gd['divergence'])
     )
+    fig.colorbar(s)
     ax.set_aspect('equal')
     plt.savefig(subfile)
     plt.close(fig)
