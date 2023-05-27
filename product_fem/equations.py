@@ -38,6 +38,7 @@ class Equation:
         return self.bc.product_function_space
     
     def update_control(self, m):
+        # TODO: remove
         self.control.update(m)
         
     def assemble_system(self):
