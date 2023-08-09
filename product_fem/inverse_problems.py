@@ -121,6 +121,7 @@ class InverseProblem:
         return loss, grad
     
     def optimize(self, m0, method='BFGS', *args, **kwargs):
+        # TODO: we only use options out of kwargs; make this explicit
         allvecs = [m0.array()]
         
         u0 = self.equation.solve(m0)

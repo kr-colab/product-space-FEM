@@ -138,6 +138,7 @@ do
     snakemake -C base_name=${ODIR%_0} --profile ~/.config/snakemake/talapas/
     python plot_crossvalidation.py $ODIR/results.pkl
 done
+```
 
 # 4/18/23
 
