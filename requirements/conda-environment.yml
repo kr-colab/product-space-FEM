@@ -14,7 +14,7 @@ dependencies:
   - slim
   - bioconda::snakemake
   - hyperopt 
-  - pyslim>=1.0.1  
+  - pyslim>=1.0.4
   - ffmpeg
   - quarto
   - papermill
